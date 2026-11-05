@@ -2,36 +2,35 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Last Light Ridge — a factory proof piece</title>
+<title>Last Light Ridge — a real little game</title>
 <style>
-  body { margin:0; overflow:hidden; background:#0a0812; font-family: system-ui, sans-serif; color:#fff; }
+  body { margin:0; overflow:hidden; background:#1a1426; font-family: system-ui, sans-serif; color:#fff; }
   canvas { display:block; }
   #vignette { position:fixed; inset:0; pointer-events:none; z-index:5;
-    background: radial-gradient(ellipse at center, transparent 55%, rgba(10,5,20,.55) 100%); }
-  #hud { position:fixed; top:14px; left:14px; z-index:10; background:rgba(12,8,20,.55); padding:10px 14px; border-radius:10px; backdrop-filter: blur(3px); }
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(10,5,20,.5) 100%); }
+  #hud { position:fixed; top:14px; left:14px; z-index:10; background:rgba(12,8,20,.55); padding:10px 14px; border-radius:10px; }
   #hud .obj { font-size:15px; } #hud .sub { font-size:12px; color:#d8c9a3; margin-top:2px; }
   #score { position:fixed; top:14px; right:14px; z-index:10; background:rgba(12,8,20,.55); padding:10px 14px; border-radius:10px; text-align:right; font-size:14px; }
   #score b { color:#ffd97a; font-size:17px; }
   #hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:10; background:rgba(12,8,20,.55);
     padding:8px 16px; border-radius:999px; font-size:13px; color:#e8ddc0; white-space:nowrap; }
+  #cross { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:7; pointer-events:none; font-size:18px; color:rgba(255,255,255,.85); text-shadow:0 0 4px #000; }
   #scope { position:fixed; inset:0; z-index:8; pointer-events:none; display:none; }
   #flash { position:fixed; inset:0; background:#fff8e0; opacity:0; pointer-events:none; z-index:9; }
-  .panel { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(8,5,16,.72); }
-  .card { max-width:520px; text-align:center; padding:36px 40px; background:rgba(18,12,30,.9); border:1px solid rgba(255,217,122,.35); border-radius:16px; }
+  .panel { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(8,5,16,.7); }
+  .card { max-width:520px; text-align:center; padding:36px 40px; background:rgba(18,12,30,.92); border:1px solid rgba(255,217,122,.35); border-radius:16px; }
   .card h1 { margin:0 0 6px; font-size:34px; letter-spacing:.14em; color:#ffd97a; font-weight:600; }
   .card h2 { margin:0 0 14px; font-size:15px; letter-spacing:.3em; color:#b9a888; font-weight:400; }
   .card p { color:#e6dcc4; line-height:1.55; font-size:15px; }
   .card .controls { color:#a99f83; font-size:13px; line-height:1.7; }
   .card button { margin-top:18px; background:#ffd97a; color:#231806; border:0; font-size:16px; font-weight:700;
     padding:12px 30px; border-radius:999px; cursor:pointer; letter-spacing:.06em; }
-  .card button:hover { background:#ffe49a; }
   #winPanel { display:none; }
 </style>
 <script type="importmap">
 { "imports": {
   "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
-  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
-  "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.4.0/spark.module.js"
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/"
 } }
 </script>
 </head>
@@ -39,24 +38,25 @@
 <div id="vignette"></div>
 <svg id="scope" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
   <defs><mask id="sm"><rect width="100" height="100" fill="white"/><circle cx="50" cy="50" r="31" fill="black"/></mask></defs>
-  <rect width="100" height="100" fill="rgba(0,0,0,.93)" mask="url(#sm)"/>
+  <rect width="100" height="100" fill="rgba(0,0,0,.94)" mask="url(#sm)"/>
   <circle cx="50" cy="50" r="31" fill="none" stroke="rgba(0,0,0,.9)" stroke-width="1.2"/>
   <line x1="50" y1="19" x2="50" y2="81" stroke="rgba(10,10,10,.85)" stroke-width=".45"/>
   <line x1="19" y1="50" x2="81" y2="50" stroke="rgba(10,10,10,.85)" stroke-width=".45"/>
   <circle cx="50" cy="50" r=".8" fill="rgba(120,10,10,.9)"/>
 </svg>
+<div id="cross">+</div>
 <div id="flash"></div>
-<div id="hud"><div class="obj" id="obj">Loading the valley…</div><div class="sub" id="sub">one moment</div></div>
+<div id="hud"><div class="obj" id="obj">Building the valley…</div><div class="sub" id="sub">real ground, real trees, real bells</div></div>
 <div id="score">🔔 <b id="bells">0 / 6</b><br><span style="color:#a99f83;font-size:12px">shots <span id="shots">0</span> · <span id="clock">0:00</span> · <span id="fps">…</span></span></div>
-<div id="hint">WASD walk · Shift brisk · mouse look</div>
+<div id="hint">WASD move · Shift run · Space jump · mouse look</div>
 
 <div class="panel" id="startPanel"><div class="card">
-  <h1>LAST LIGHT RIDGE</h1><h2>A FACTORY PROOF PIECE</h2>
-  <p>You are the valley's watcher. Six signal bells stand across the valley.
-  Walk it, climb to the ridge stone, and ring every bell with a clean shot —
-  so the village below knows the pass is safe tonight.</p>
-  <p class="controls">WASD — walk &nbsp;·&nbsp; SHIFT — brisk &nbsp;·&nbsp; MOUSE — look<br>
-  At the ridge: hold RIGHT MOUSE (or Q) — scope &nbsp;·&nbsp; LEFT CLICK — fire</p>
+  <h1>LAST LIGHT RIDGE</h1><h2>A REAL LITTLE GAME</h2>
+  <p>You are the valley's watcher. Six signal bells stand across a real valley —
+  real ground under your boots, real trees, real bells that ring and fall.
+  Climb the ridge, take the long view, and ring every bell with a clean shot.</p>
+  <p class="controls">WASD — move &nbsp;·&nbsp; SHIFT — run &nbsp;·&nbsp; SPACE — jump &nbsp;·&nbsp; MOUSE — look<br>
+  Hold RIGHT MOUSE (or Q) — scope &nbsp;·&nbsp; LEFT CLICK — fire</p>
   <button id="startBtn">Take up the watch</button>
 </div></div>
 
@@ -68,269 +68,380 @@
 
 <script type="module">
 import * as THREE from "three";
-import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-const AUTO = new URLSearchParams(location.search).get('auto') === '1';
-const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.05, 2000);
-const renderer = new THREE.WebGLRenderer({ antialias:true });
+// ================= terrain math (the ground is a formula — geometry and footing share it) =================
+function heightAt(x, z) {
+  let h = 2.2 * Math.sin(x * 0.045) * Math.cos(z * 0.05)
+        + 1.1 * Math.sin(x * 0.13 + 1.7) * Math.sin(z * 0.11 + 0.6)
+        + 0.5 * Math.sin(x * 0.31) * Math.cos(z * 0.27);
+  const dx = x + 30, dz = z + 25;
+  h += 11 * Math.exp(-(dx * dx + dz * dz) / 260);              // the ridge
+  const r = Math.hypot(x, z);
+  if (r > 88) h += (r - 88) * 0.35;                            // valley rim rises around you
+  return h;
+}
+function slopeAt(x, z) {
+  const e = 0.6, h = heightAt(x, z);
+  return Math.max(Math.abs(heightAt(x + e, z) - h), Math.abs(heightAt(x, z + e) - h)) / e;
+}
+
+// ================= renderer / scene =================
+const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
 document.body.appendChild(renderer.domElement);
-scene.add(new SparkRenderer({ renderer }));
-const ray = new THREE.Raycaster();
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xf2b879);
+scene.fog = new THREE.Fog(0xe9a869, 90, 240);
+const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 600);
 
-// ---------- audio (all synthesized, no downloads) ----------
+const hemi = new THREE.HemisphereLight(0xffe3c0, 0x4a5a3a, 0.85); scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffbe78, 2.0);
+sun.position.set(-60, 70, -35); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -120; sun.shadow.camera.right = 120;
+sun.shadow.camera.top = 120; sun.shadow.camera.bottom = -120;
+sun.shadow.camera.far = 300; sun.shadow.bias = -0.0006;
+scene.add(sun);
+const sunBall = new THREE.Mesh(new THREE.SphereGeometry(4, 16, 12),
+  new THREE.MeshBasicMaterial({ color: 0xffe9b0, fog: false }));
+sunBall.position.set(-190, 95, -120); scene.add(sunBall);
+
+// ================= ground =================
+{
+  const geo = new THREE.PlaneGeometry(240, 240, 150, 150);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position, colors = [];
+  const cGrass = new THREE.Color(0x69a047), cDry = new THREE.Color(0xa9a35c),
+        cRock = new THREE.Color(0x8a7c66), cHigh = new THREE.Color(0x9c8d74);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i), h = heightAt(x, z);
+    pos.setY(i, h);
+    const s = slopeAt(x, z);
+    let c = cGrass.clone().lerp(cDry, Math.max(0, Math.min(1, (Math.sin(x * 0.21 + z * 0.17) + 1) / 2)) * 0.55);
+    if (s > 0.55) c.lerp(cRock, Math.min(1, (s - 0.55) * 1.6));
+    if (h > 9) c.lerp(cHigh, Math.min(1, (h - 9) / 5));
+    const j = 0.94 + Math.random() * 0.12; colors.push(c.r * j, c.g * j, c.b * j);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+  geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+  ground.receiveShadow = true; scene.add(ground);
+}
+
+// ================= trees & rocks (instanced real models) =================
+const rand = (a, b) => a + Math.random() * (b - a);
+const BELL_SPOTS = [[-6, -38], [30, -12], [-44, 10], [12, 34], [-16, 46], [46, 30]];
+const RIDGE = new THREE.Vector3(-30, 0, -25); RIDGE.y = heightAt(RIDGE.x, RIDGE.z);
+const SPAWN = new THREE.Vector3(18, 0, 20); SPAWN.y = heightAt(SPAWN.x, SPAWN.z);
+function clearOf(x, z, d) {
+  if (Math.hypot(x - SPAWN.x, z - SPAWN.z) < d + 4) return false;
+  if (Math.hypot(x - RIDGE.x, z - RIDGE.z) < d + 3) return false;
+  return BELL_SPOTS.every(([bx, bz]) => Math.hypot(x - bx, z - bz) > d);
+}
+{
+  const trunkG = new THREE.CylinderGeometry(0.22, 0.34, 2.4, 6);
+  const canG = new THREE.ConeGeometry(1.9, 4.6, 8);
+  const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2c, roughness: 1 });
+  const canM = new THREE.MeshStandardMaterial({ color: 0x3f7031, roughness: 1 });
+  const N = 260;
+  const trunks = new THREE.InstancedMesh(trunkG, trunkM, N);
+  const cans = new THREE.InstancedMesh(canG, canM, N);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), sc = new THREE.Vector3();
+  let placed = 0, guard = 0;
+  while (placed < N && guard++ < 6000) {
+    const x = rand(-105, 105), z = rand(-105, 105);
+    if (!clearOf(x, z, 3.5) || slopeAt(x, z) > 0.7 || heightAt(x, z) > 9.5) continue;
+    const s = rand(0.8, 1.7), y = heightAt(x, z);
+    e.set(0, Math.random() * Math.PI * 2, 0); q.setFromEuler(e);
+    m.compose(v.set(x, y + 1.2 * s, z), q, sc.set(s, s, s)); trunks.setMatrixAt(placed, m);
+    m.compose(v.set(x, y + (2.4 + 2.1) * s, z), q, sc.set(s, s, s)); cans.setMatrixAt(placed, m);
+    placed++;
+  }
+  trunks.count = cans.count = placed;
+  trunks.castShadow = cans.castShadow = true;
+  scene.add(trunks, cans);
+  const rockG = new THREE.DodecahedronGeometry(1, 0);
+  const rockM = new THREE.MeshStandardMaterial({ color: 0x8d8474, roughness: 1, flatShading: true });
+  const rocks = new THREE.InstancedMesh(rockG, rockM, 90);
+  for (let i = 0; i < 90; i++) {
+    const x = rand(-105, 105), z = rand(-105, 105), s = rand(0.3, 1.6);
+    e.set(Math.random() * 3, Math.random() * 3, Math.random() * 3); q.setFromEuler(e);
+    m.compose(v.set(x, heightAt(x, z) + 0.2 * s, z), q, sc.set(s, s * 0.75, s));
+    rocks.setMatrixAt(i, m);
+  }
+  rocks.castShadow = true; scene.add(rocks);
+}
+
+// ================= the watcher (built character, third person) =================
+function box(w, h, d, color, x, y, z, parent) {
+  const ms = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
+  ms.position.set(x, y, z); ms.castShadow = true; parent.add(ms); return ms;
+}
+const hero = new THREE.Group();
+const legL = new THREE.Group(), legR = new THREE.Group(), armL = new THREE.Group(), armR = new THREE.Group();
+{
+  legL.position.set(-0.16, 0.95, 0); legR.position.set(0.16, 0.95, 0);
+  box(0.24, 0.95, 0.28, 0x3a3f4a, 0, -0.48, 0, legL); box(0.24, 0.95, 0.28, 0x3a3f4a, 0, -0.48, 0, legR);
+  box(0.26, 0.14, 0.4, 0x2a2118, 0, -0.93, 0.06, legL); box(0.26, 0.14, 0.4, 0x2a2118, 0, -0.93, 0.06, legR);
+  hero.add(legL, legR);
+  box(0.62, 0.78, 0.36, 0x2e6f6a, 0, 1.32, 0, hero);                 // jacket torso
+  box(0.5, 0.34, 0.2, 0x54382a, 0, 1.36, -0.3, hero);                // backpack
+  armL.position.set(-0.4, 1.62, 0); armR.position.set(0.4, 1.62, 0);
+  box(0.18, 0.72, 0.2, 0x2e6f6a, 0, -0.32, 0, armL); box(0.18, 0.72, 0.2, 0x2e6f6a, 0, -0.32, 0, armR);
+  hero.add(armL, armR);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.21, 14, 12),
+    new THREE.MeshStandardMaterial({ color: 0xd9a37a, roughness: 0.7 }));
+  head.position.set(0, 1.92, 0); head.castShadow = true; hero.add(head);
+  box(0.46, 0.09, 0.46, 0x74452a, 0, 2.06, 0, hero);                  // cap
+  box(0.46, 0.05, 0.3, 0x74452a, 0, 2.02, 0.3, hero);
+  const rifle = new THREE.Group();
+  box(0.07, 0.11, 1.05, 0x4a3220, 0, 0, 0, rifle);
+  box(0.045, 0.045, 0.6, 0x22242a, 0, 0.03, 0.75, rifle);
+  box(0.05, 0.14, 0.05, 0x22242a, 0, -0.1, 0.15, rifle);
+  rifle.position.set(0.3, 1.42, 0.35); rifle.rotation.x = -0.06;
+  hero.add(rifle); hero.userData.rifle = rifle;
+}
+hero.position.copy(SPAWN); scene.add(hero);
+
+// ================= ridge stone + beam =================
+{
+  const stoneM = new THREE.MeshStandardMaterial({ color: 0x8d8578, roughness: 1, flatShading: true });
+  [[0, 0.4, 0, 1.7], [0.5, 1.1, 0.2, 1.15], [-0.2, 1.65, -0.1, 0.7]].forEach(([x, y, z, s]) => {
+    const st = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), stoneM);
+    st.position.set(RIDGE.x + x, RIDGE.y + y, RIDGE.z + z); st.castShadow = true; scene.add(st);
+  });
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.0, 1.0, 110, 14, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd97a, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+  beam.position.set(RIDGE.x, RIDGE.y + 55, RIDGE.z); scene.add(beam);
+}
+
+// ================= bells (real objects — they ring, swing and fall) =================
+const bells = [];
+{
+  const postM = new THREE.MeshStandardMaterial({ color: 0x54402a, roughness: 1 });
+  BELL_SPOTS.forEach(([bx, bz], i) => {
+    const y = heightAt(bx, bz), g = new THREE.Group(); g.position.set(bx, y, bz);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.2, 4.6, 7), postM);
+    post.position.y = 2.3; post.castShadow = true; g.add(post);
+    const bar = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.7, 6), postM);
+    bar.rotation.z = Math.PI / 2; bar.position.y = 4.5; g.add(bar);
+    const pivot = new THREE.Group(); pivot.position.y = 4.5; g.add(pivot);
+    const bell = new THREE.Group();
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      new THREE.MeshStandardMaterial({ color: 0xffc94d, metalness: 0.85, roughness: 0.3, emissive: 0x8a5c00, emissiveIntensity: 0.35, side: THREE.DoubleSide }));
+    dome.position.y = -0.35; dome.castShadow = true; bell.add(dome);
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.48, 0.34, 14, 1, true), dome.material);
+    skirt.position.y = -0.52; bell.add(skirt);
+    bell.position.y = -0.15; pivot.add(bell);
+    scene.add(g);
+    bells.push({ g, pivot, bell, rung: false, swing: 0, falling: 0, idx: i });
+  });
+}
+
+// ================= audio =================
 let AC = null;
-function audio() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); return AC; }
-function bell(i) {
-  const ac = audio(), t = ac.currentTime;
-  const base = 880 * Math.pow(1.0594631, [0,3,5,7,10,12][i % 6]);
-  [[1, .5], [2.76, .22], [5.4, .1]].forEach(([m, g]) => {
+const audio = () => (AC ??= new (window.AudioContext || window.webkitAudioContext)());
+function chime(i) {
+  const ac = audio(), t = ac.currentTime, base = 740 * Math.pow(1.0594631, [0, 3, 5, 7, 10, 12][i % 6]);
+  [[1, .45], [2.76, .2], [5.4, .09]].forEach(([mm, g]) => {
     const o = ac.createOscillator(), gn = ac.createGain();
-    o.type = 'sine'; o.frequency.value = base * m;
-    gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0001, t + 1.6);
-    o.connect(gn).connect(ac.destination); o.start(t); o.stop(t + 1.7);
+    o.type = 'sine'; o.frequency.value = base * mm;
+    gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0001, t + 1.8);
+    o.connect(gn).connect(ac.destination); o.start(t); o.stop(t + 1.9);
   });
 }
 function shotSound() {
-  const ac = audio(), t = ac.currentTime, len = ac.sampleRate * .14;
+  const ac = audio(), t = ac.currentTime, len = ac.sampleRate * .13;
   const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
-  const src = ac.createBufferSource(); src.buffer = buf;
-  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2600;
-  const g = ac.createGain(); g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .14);
-  src.connect(f).connect(g).connect(ac.destination); src.start(t);
+  const s = ac.createBufferSource(); s.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2400;
+  const g = ac.createGain(); g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .13);
+  s.connect(f).connect(g).connect(ac.destination); s.start(t);
 }
 function thock() {
   const ac = audio(), t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-  o.type = 'triangle'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t + .12);
-  g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .13);
+  o.type = 'triangle'; o.frequency.setValueAtTime(170, t); o.frequency.exponentialRampToValueAtTime(55, t + .12);
+  g.gain.setValueAtTime(.22, t); g.gain.exponentialRampToValueAtTime(.001, t + .13);
   o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .14);
 }
 
-// ---------- world ----------
-const player = { pos: new THREE.Vector3(0, 2, 6), yaw: 0, pitch: 0 };
-let collider = null;
-function groundHeight(x, z) {
-  if (!collider) return null;
-  ray.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
-  const hit = ray.intersectObject(collider, true)[0];
-  return hit ? hit.point.y : null;
-}
-
-const game = { phase: 'loading', rung: 0, shots: 0, startedAt: 0, finishedAt: 0, ready: false };
-window.__llr = game;
-let bells = [], ridgePoint = null, spawnPoint = null;
-
-function glowTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d'), gr = g.createRadialGradient(64,64,2,64,64,64);
-  gr.addColorStop(0, 'rgba(255,220,130,0.95)'); gr.addColorStop(0.35, 'rgba(255,190,80,0.35)'); gr.addColorStop(1, 'rgba(255,180,60,0)');
-  g.fillStyle = gr; g.fillRect(0,0,128,128);
-  return new THREE.CanvasTexture(c);
-}
-const glowTex = glowTexture();
-
-function buildWorld() {
-  // probe the collider: find walkable ground
-  const pts = [];
-  for (let x = -90; x <= 90; x += 4) for (let z = -90; z <= 90; z += 4) {
-    const y = groundHeight(x, z);
-    if (y !== null && y > -40 && y < 120) pts.push(new THREE.Vector3(x, y, z));
-  }
-  const near = (p, d) => pts.filter(q => q.distanceTo(p) <= d);
-  spawnPoint = pts.reduce((a, b) => (a.distanceTo(new THREE.Vector3(0, a.y, 6)) < b.distanceTo(new THREE.Vector3(0, b.y, 6)) ? a : b));
-  player.pos.set(spawnPoint.x, spawnPoint.y + 1.7, spawnPoint.z);
-  // ridge = highest walkable point within 60 of spawn, at least 3 above spawn if possible
-  const cand = near(spawnPoint, 60).sort((a, b) => b.y - a.y);
-  ridgePoint = cand.find(p => p.y > spawnPoint.y + 3) || cand[0];
-  // ridge stone + golden beam
-  const stone = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, 1.1, 7),
-    new THREE.MeshStandardMaterial({ color: 0x8d8578, roughness: .95 }));
-  stone.position.set(ridgePoint.x, ridgePoint.y + .55, ridgePoint.z); scene.add(stone);
-  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 90, 16, 1, true),
-    new THREE.MeshBasicMaterial({ color: 0xffd97a, transparent: true, opacity: .13, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
-  beam.position.set(ridgePoint.x, ridgePoint.y + 45, ridgePoint.z); beam.name = 'ridgeBeam'; scene.add(beam);
-  // six bells at varied bearings/distances from the ridge
-  const wood = new THREE.MeshStandardMaterial({ color: 0x4a3421, roughness: .9 });
-  const gold = new THREE.MeshStandardMaterial({ color: 0xffc94d, emissive: 0xa86f00, emissiveIntensity: .55, metalness: .85, roughness: .3 });
-  const placed = [];
-  for (let i = 0; i < 6; i++) {
-    const bearing = (i / 6) * Math.PI * 2 + .5, dist = 24 + (i % 3) * 15;
-    const want = new THREE.Vector3(ridgePoint.x + Math.sin(bearing) * dist, 0, ridgePoint.z + Math.cos(bearing) * dist);
-    const opts = pts.filter(p => p.distanceTo(ridgePoint) > 14 && placed.every(q => q.distanceTo(p) > 13))
-                    .sort((a, b) => a.distanceTo(want) - b.distanceTo(want));
-    const p = opts[0]; placed.push(p);
-    const grp = new THREE.Group(); grp.position.copy(p);
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.14, .18, 4.4, 8), wood); pole.position.y = 2.2; grp.add(pole);
-    const orb = new THREE.Mesh(new THREE.SphereGeometry(.62, 20, 16), gold.clone()); orb.position.y = 4.7; orb.name = 'bell'; grp.add(orb);
-    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-    spr.scale.setScalar(3.4); spr.position.y = 4.7; grp.add(spr);
-    scene.add(grp);
-    bells.push({ grp, orb, spr, rung: false, baseY: 4.7 });
-  }
-  game.phase = 'walk'; game.ready = true;
-  setObjective('Walk the valley — climb to the golden beam', 'the ridge stone waits above');
-}
-
-// ---------- particles ----------
+// ================= particles =================
 const bursts = [];
 function burst(pos, color, n, spread, up) {
-  const geo = new THREE.BufferGeometry();
-  const arr = new Float32Array(n * 3), vel = [];
-  for (let i = 0; i < n; i++) {
-    arr[i*3] = pos.x; arr[i*3+1] = pos.y; arr[i*3+2] = pos.z;
-    vel.push(new THREE.Vector3((Math.random()-.5)*spread, Math.random()*up, (Math.random()-.5)*spread));
-  }
+  const geo = new THREE.BufferGeometry(), arr = new Float32Array(n * 3), vel = [];
+  for (let i = 0; i < n; i++) { arr.set([pos.x, pos.y, pos.z], i * 3); vel.push(new THREE.Vector3((Math.random() - .5) * spread, Math.random() * up, (Math.random() - .5) * spread)); }
   geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
-  const m = new THREE.Points(geo, new THREE.PointsMaterial({ color, size: .28, transparent: true, opacity: 1 }));
-  scene.add(m); bursts.push({ m, vel, life: 1 });
+  const p = new THREE.Points(geo, new THREE.PointsMaterial({ color, size: .22, transparent: true }));
+  scene.add(p); bursts.push({ p, vel, life: 1 });
 }
 
-// ---------- input ----------
+// ================= game state / input =================
+const game = { phase: 'walk', rung: 0, shots: 0, startedAt: 0, ready: true };
+window.__llr = game;
 const keys = {};
-let scoped = false, playing = false;
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ' && game.phase === 'aim') scoped = !scoped; });
+let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
+let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
+const AUTO = new URLSearchParams(location.search).get('auto');
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('contextmenu', e => e.preventDefault());
 addEventListener('mousedown', e => {
   if (!playing) return;
-  if (e.button === 2 && game.phase === 'aim') scoped = true;
-  if (e.button === 0 && game.phase === 'aim' && document.pointerLockElement) fire();
+  if (e.button === 2) scoped = true;
+  if (e.button === 0 && document.pointerLockElement) fire();
 });
 addEventListener('mouseup', e => { if (e.button === 2) scoped = false; });
 addEventListener('mousemove', e => {
   if (document.pointerLockElement !== renderer.domElement) return;
-  const s = scoped ? .0006 : .0021;
-  player.yaw -= e.movementX * s; player.pitch -= e.movementY * s;
-  player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+  const s = scoped ? 0.00055 : 0.0021;
+  camYaw -= e.movementX * s; camPitch = Math.max(-0.15, Math.min(1.1, camPitch + e.movementY * s));
 });
-document.addEventListener('pointerlockchange', () => {
-  if (AUTO) return;
-  document.getElementById('hint').textContent =
-    document.pointerLockElement ? hintForPhase() : 'Click the valley to keep walking';
-});
-function hintForPhase() {
-  return game.phase === 'aim' ? 'Hold right mouse — scope · left click — fire · Q toggles scope'
-                              : 'WASD walk · Shift brisk · mouse look';
-}
 renderer.domElement.addEventListener('click', () => { if (playing) renderer.domElement.requestPointerLock(); });
-
+const ray = new THREE.Raycaster();
 function setObjective(o, s) { document.getElementById('obj').textContent = o; document.getElementById('sub').textContent = s; }
-
 function fire() {
+  if (game.phase === 'won') return;
   game.shots++; document.getElementById('shots').textContent = game.shots;
   shotSound();
-  const fl = document.getElementById('flash'); fl.style.transition = 'none'; fl.style.opacity = .75;
+  const fl = document.getElementById('flash');
+  fl.style.transition = 'none'; fl.style.opacity = .7;
   requestAnimationFrame(() => { fl.style.transition = 'opacity .18s'; fl.style.opacity = 0; });
   ray.setFromCamera(new THREE.Vector2(0, 0), camera);
-  const orbHit = ray.intersectObjects(bells.filter(b => !b.rung).map(b => b.orb), false)[0];
-  if (orbHit) {
-    const b = bells.find(x => x.orb === orbHit.object);
-    b.rung = true; game.rung++;
-    b.orb.material.emissiveIntensity = 0; b.orb.material.color.set(0x6e5626);
-    b.spr.visible = false;
-    const wp = new THREE.Vector3(); b.orb.getWorldPosition(wp);
-    burst(wp, 0xffd97a, 42, 3.2, 2.6); bell(game.rung - 1);
-    document.getElementById('bells').textContent = game.rung + ' / 6';
-    if (game.rung === 6) win(); else setObjective('Ring the six signal bells', (6 - game.rung) + ' still silent — scan the valley');
-    return;
+  const targets = bells.filter(b => !b.rung).map(b => b.bell);
+  const hit = ray.intersectObjects(targets, true)[0];
+  if (hit) {
+    let o = hit.object, b = null;
+    while (o) { b = bells.find(x => x.bell === o) || b; o = o.parent; }
+    if (b && !b.rung) {
+      b.rung = true; b.swing = 2.6; b.falling = 1; game.rung++;
+      const wp = new THREE.Vector3(); b.bell.getWorldPosition(wp);
+      burst(wp, 0xffd97a, 40, 3, 2.4); chime(b.idx);
+      document.getElementById('bells').textContent = game.rung + ' / 6';
+      if (game.rung === 6) win();
+      else setObjective('Ring the six signal bells', (6 - game.rung) + ' still silent — scan the valley');
+      return;
+    }
   }
-  const groundHit = collider ? ray.intersectObject(collider, true)[0] : null;
-  if (groundHit) { burst(groundHit.point, 0xcfc4a8, 10, 1.2, 1.4); thock(); }
+  const far = ray.ray.at(220, new THREE.Vector3());
+  burst(new THREE.Vector3(far.x, Math.max(far.y, heightAt(far.x, far.z) + .2), far.z), 0xcfc4a8, 8, 1, 1.2); thock();
 }
-
 function win() {
-  game.phase = 'won'; game.finishedAt = performance.now(); scoped = false;
-  document.exitPointerLock?.();
-  const secs = Math.round((game.finishedAt - game.startedAt) / 1000);
-  const acc = Math.round(100 * game.rung / Math.max(1, game.shots));
+  game.phase = 'won'; document.exitPointerLock?.(); scoped = false;
+  const secs = Math.round((performance.now() - game.startedAt) / 1000);
   document.getElementById('winStats').textContent =
-    `Time on the watch: ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} · Shots: ${game.shots} · Accuracy: ${acc}%`;
+    `Time on the watch: ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')} · Shots: ${game.shots} · Accuracy: ${Math.round(100 * game.rung / Math.max(1, game.shots))}%`;
   setObjective('The pass is safe tonight', 'all six bells rung');
   document.getElementById('winPanel').style.display = 'flex';
-  [0, 1, 2].forEach(i => setTimeout(() => bell(i + 2), i * 260));
+  [0, 1, 2].forEach(i => setTimeout(() => chime(i + 2), i * 280));
 }
-
-// ---------- start / restart ----------
 function startGame() {
   document.getElementById('startPanel').style.display = 'none';
   document.getElementById('winPanel').style.display = 'none';
-  playing = true; game.startedAt = performance.now();
-  audio();
+  playing = true; game.startedAt = performance.now(); audio();
   if (!AUTO) renderer.domElement.requestPointerLock();
 }
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('againBtn').addEventListener('click', () => location.reload());
+setObjective('Walk the valley — climb to the golden beam', 'the ridge sees everything');
+if (AUTO === '1') { playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none'; }
+if (AUTO === '2') {
+  playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none';
+  hero.position.set(RIDGE.x + 3, RIDGE.y, RIDGE.z + 3);
+  camYaw = Math.atan2(hero.position.x - 0, hero.position.z - 0) + Math.PI; scoped = true;
+  game.phase = 'aim'; setObjective('Ring the six signal bells', 'from the ridge — checker view');
+}
 
-// ---------- load ----------
-(async () => {
-  const splat = new SplatMesh({ url: 'lush-valley_500k.spz' });
-  splat.quaternion.set(1, 0, 0, 0);
-  scene.add(splat);
-  const gltf = await new GLTFLoader().loadAsync('lush-valley_collider.glb');
-  collider = gltf.scene; collider.traverse(o => { o.visible = false; }); scene.add(collider);
-  await splat.initialized;
-  scene.add(new THREE.AmbientLight(0xffe0b3, 1.1));
-  const sun = new THREE.DirectionalLight(0xffc37a, 1.6); sun.position.set(40, 60, 20); scene.add(sun);
-  buildWorld();
-  if (AUTO) { // checker mode: stand at the ridge, slow survey pan
-    playing = true; game.phase = 'aim'; game.startedAt = performance.now();
-    document.getElementById('startPanel').style.display = 'none';
-    player.pos.set(ridgePoint.x + 2.5, ridgePoint.y + 1.7, ridgePoint.z + 2.5);
-    player.yaw = Math.atan2(player.pos.x - ridgePoint.x, player.pos.z - ridgePoint.z) + Math.PI;
-    setObjective('Ring the six signal bells', 'survey from the ridge — checker view');
-  }
-})().catch(e => setObjective('The valley failed to load', e.message));
-
-// ---------- loop ----------
-let last = performance.now(), frames = 0, fpsT = 0, t0 = performance.now();
+// ================= loop =================
+let last = performance.now(), frames = 0, fpsT = 0;
+const _v = new THREE.Vector3();
 renderer.setAnimationLoop(() => {
   const now = performance.now(), dt = Math.min(.05, (now - last) / 1000); last = now;
   frames++; fpsT += dt;
   if (fpsT >= .5) { document.getElementById('fps').textContent = Math.round(frames / fpsT) + ' fps'; frames = 0; fpsT = 0; }
+
   if (playing && game.phase !== 'won') {
-    const speed = (keys.ShiftLeft || keys.ShiftRight ? 13 : 5.2) * dt;
-    const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
-    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
-    if (keys.KeyW) player.pos.addScaledVector(fwd, speed);
-    if (keys.KeyS) player.pos.addScaledVector(fwd, -speed);
-    if (keys.KeyA) player.pos.addScaledVector(right, -speed);
-    if (keys.KeyD) player.pos.addScaledVector(right, speed);
-    const g = groundHeight(player.pos.x, player.pos.z);
-    if (g !== null) player.pos.y = g + 1.7;
-    if (game.phase === 'walk' && ridgePoint && player.pos.distanceTo(new THREE.Vector3(ridgePoint.x, player.pos.y, ridgePoint.z)) < 4) {
-      game.phase = 'aim';
+    // movement relative to camera
+    const mv = new THREE.Vector3((keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0), 0, (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0));
+    const moving = mv.lengthSq() > 0;
+    const run = keys.ShiftLeft || keys.ShiftRight;
+    const speed = scoped ? 1.6 : (run ? 9.5 : 5);
+    if (moving) {
+      mv.normalize();
+      const sin = Math.sin(camYaw), cos = Math.cos(camYaw);
+      const wx = mv.x * cos - mv.z * sin, wz = -mv.x * sin - mv.z * cos;
+      hero.position.x = Math.max(-112, Math.min(112, hero.position.x + wx * speed * dt));
+      hero.position.z = Math.max(-112, Math.min(112, hero.position.z + wz * speed * dt));
+      const targetYaw = Math.atan2(wx, wz);
+      let d = targetYaw - heroYaw;
+      while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
+      if (!scoped) heroYaw += d * Math.min(1, dt * 12); else heroYaw = camYaw + Math.PI;
+      walkCycle += dt * (run ? 11 : 8);
+    }
+    if (keys.Space && !airborne) { vy = 7.5; airborne = true; }
+    const gy = heightAt(hero.position.x, hero.position.z);
+    if (airborne) {
+      hero.position.y += vy * dt; vy -= 22 * dt;
+      if (hero.position.y <= gy) { hero.position.y = gy; airborne = false; vy = 0; }
+    } else hero.position.y = gy;
+    // limb animation
+    const sw = moving ? Math.sin(walkCycle) * .55 : 0;
+    legL.rotation.x = sw; legR.rotation.x = -sw;
+    armL.rotation.x = scoped ? -1.25 : -sw * .8;
+    armR.rotation.x = scoped ? -1.05 : sw * .8;
+    hero.userData.rifle.rotation.x = scoped ? -0.32 : -0.06;
+    if (game.phase === 'walk' && hero.position.distanceTo(RIDGE) < 5) {
+      game.phase = 'aim'; chime(0);
       setObjective('Ring the six signal bells', 'from the ridge — take your time, watcher');
-      document.getElementById('hint').textContent = hintForPhase();
-      bell(0);
+      document.getElementById('hint').textContent = 'Hold right mouse — scope · left click — fire · Q toggles scope · you may shoot from anywhere';
     }
     const el = Math.floor((now - game.startedAt) / 1000);
-    document.getElementById('clock').textContent = Math.floor(el/60) + ':' + String(el%60).padStart(2,'0');
+    document.getElementById('clock').textContent = Math.floor(el / 60) + ':' + String(el % 60).padStart(2, '0');
   }
-  if (AUTO) player.yaw += dt * .07;
-  const targetFov = scoped ? 13 : 60;
-  if (Math.abs(camera.fov - targetFov) > .1) { camera.fov += (targetFov - camera.fov) * .35; camera.updateProjectionMatrix(); }
+  hero.rotation.y = heroYaw;
+  if (AUTO === '1') camYaw += dt * .05;
+
+  // camera: third person orbit, over-shoulder when scoped
+  const dist = scoped ? 2.4 : 5.4, up = scoped ? 1.75 : 2.1;
+  const cx = hero.position.x + Math.sin(camYaw) * Math.cos(camPitch) * dist;
+  const cz = hero.position.z + Math.cos(camYaw) * Math.cos(camPitch) * dist;
+  const cy = hero.position.y + up + Math.sin(camPitch) * dist;
+  camera.position.set(cx, Math.max(cy, heightAt(cx, cz) + .5), cz);
+  const shoulder = scoped ? .55 : 0;
+  _v.set(hero.position.x + Math.cos(camYaw) * shoulder, hero.position.y + 1.7, hero.position.z - Math.sin(camYaw) * shoulder);
+  camera.lookAt(_v);
+  const targetFov = scoped ? 16 : 60;
+  if (Math.abs(camera.fov - targetFov) > .1) { camera.fov += (targetFov - camera.fov) * .4; camera.updateProjectionMatrix(); }
   document.getElementById('scope').style.display = scoped ? 'block' : 'none';
-  // bells gentle bob + glow pulse
-  const t = (now - t0) / 1000;
-  for (const b of bells) if (!b.rung) { b.orb.position.y = b.baseY + Math.sin(t * 1.6 + b.grp.position.x) * .08; b.spr.material.opacity = .75 + Math.sin(t * 2.2) * .25; }
+  document.getElementById('cross').style.display = scoped ? 'none' : 'block';
+
+  // bells swing & fall
+  for (const b of bells) {
+    if (b.swing > 0.01) { b.pivot.rotation.x = Math.sin(now * .012) * b.swing * .5; b.swing *= Math.pow(.4, dt); }
+    if (b.falling === 1) {
+      b.bell.position.y -= dt * 5.5;
+      b.bell.rotation.x += dt * 2.2;
+      if (b.bell.position.y < -3.6) { b.bell.position.y = -3.6; b.falling = 2; burst(new THREE.Vector3(b.g.position.x, b.g.position.y + .4, b.g.position.z), 0xbfae8a, 12, 1.6, 1.4); }
+    }
+  }
   // particles
   for (let i = bursts.length - 1; i >= 0; i--) {
-    const B = bursts[i], pos = B.m.geometry.attributes.position;
+    const B = bursts[i], pos = B.p.geometry.attributes.position;
     for (let j = 0; j < B.vel.length; j++) {
       B.vel[j].y -= 4.5 * dt;
-      pos.array[j*3] += B.vel[j].x * dt; pos.array[j*3+1] += B.vel[j].y * dt; pos.array[j*3+2] += B.vel[j].z * dt;
+      pos.array[j * 3] += B.vel[j].x * dt; pos.array[j * 3 + 1] += B.vel[j].y * dt; pos.array[j * 3 + 2] += B.vel[j].z * dt;
     }
-    pos.needsUpdate = true; B.life -= dt * .9; B.m.material.opacity = Math.max(0, B.life);
-    if (B.life <= 0) { scene.remove(B.m); bursts.splice(i, 1); }
+    pos.needsUpdate = true; B.life -= dt * .9; B.p.material.opacity = Math.max(0, B.life);
+    if (B.life <= 0) { scene.remove(B.p); bursts.splice(i, 1); }
   }
-  camera.position.copy(player.pos);
-  camera.quaternion.setFromEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
   renderer.render(scene, camera);
 });
-addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+addEventListener('resize', () => { camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
 </script>
 </body>
 </html>
