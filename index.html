@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Last Light Ridge — a factory proof piece</title>
+<style>
+  body { margin:0; overflow:hidden; background:#0a0812; font-family: system-ui, sans-serif; color:#fff; }
+  canvas { display:block; }
+  #vignette { position:fixed; inset:0; pointer-events:none; z-index:5;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(10,5,20,.55) 100%); }
+  #hud { position:fixed; top:14px; left:14px; z-index:10; background:rgba(12,8,20,.55); padding:10px 14px; border-radius:10px; backdrop-filter: blur(3px); }
+  #hud .obj { font-size:15px; } #hud .sub { font-size:12px; color:#d8c9a3; margin-top:2px; }
+  #score { position:fixed; top:14px; right:14px; z-index:10; background:rgba(12,8,20,.55); padding:10px 14px; border-radius:10px; text-align:right; font-size:14px; }
+  #score b { color:#ffd97a; font-size:17px; }
+  #hint { position:fixed; bottom:16px; left:50%; transform:translateX(-50%); z-index:10; background:rgba(12,8,20,.55);
+    padding:8px 16px; border-radius:999px; font-size:13px; color:#e8ddc0; white-space:nowrap; }
+  #scope { position:fixed; inset:0; z-index:8; pointer-events:none; display:none; }
+  #flash { position:fixed; inset:0; background:#fff8e0; opacity:0; pointer-events:none; z-index:9; }
+  .panel { position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center; background:rgba(8,5,16,.72); }
+  .card { max-width:520px; text-align:center; padding:36px 40px; background:rgba(18,12,30,.9); border:1px solid rgba(255,217,122,.35); border-radius:16px; }
+  .card h1 { margin:0 0 6px; font-size:34px; letter-spacing:.14em; color:#ffd97a; font-weight:600; }
+  .card h2 { margin:0 0 14px; font-size:15px; letter-spacing:.3em; color:#b9a888; font-weight:400; }
+  .card p { color:#e6dcc4; line-height:1.55; font-size:15px; }
+  .card .controls { color:#a99f83; font-size:13px; line-height:1.7; }
+  .card button { margin-top:18px; background:#ffd97a; color:#231806; border:0; font-size:16px; font-weight:700;
+    padding:12px 30px; border-radius:999px; cursor:pointer; letter-spacing:.06em; }
+  .card button:hover { background:#ffe49a; }
+  #winPanel { display:none; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.180.0/examples/jsm/",
+  "@sparkjsdev/spark": "https://sparkjs.dev/releases/spark/2.4.0/spark.module.js"
+} }
+</script>
+</head>
+<body>
+<div id="vignette"></div>
+<svg id="scope" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice">
+  <defs><mask id="sm"><rect width="100" height="100" fill="white"/><circle cx="50" cy="50" r="31" fill="black"/></mask></defs>
+  <rect width="100" height="100" fill="rgba(0,0,0,.93)" mask="url(#sm)"/>
+  <circle cx="50" cy="50" r="31" fill="none" stroke="rgba(0,0,0,.9)" stroke-width="1.2"/>
+  <line x1="50" y1="19" x2="50" y2="81" stroke="rgba(10,10,10,.85)" stroke-width=".45"/>
+  <line x1="19" y1="50" x2="81" y2="50" stroke="rgba(10,10,10,.85)" stroke-width=".45"/>
+  <circle cx="50" cy="50" r=".8" fill="rgba(120,10,10,.9)"/>
+</svg>
+<div id="flash"></div>
+<div id="hud"><div class="obj" id="obj">Loading the valley…</div><div class="sub" id="sub">one moment</div></div>
+<div id="score">🔔 <b id="bells">0 / 6</b><br><span style="color:#a99f83;font-size:12px">shots <span id="shots">0</span> · <span id="clock">0:00</span> · <span id="fps">…</span></span></div>
+<div id="hint">WASD walk · Shift brisk · mouse look</div>
+
+<div class="panel" id="startPanel"><div class="card">
+  <h1>LAST LIGHT RIDGE</h1><h2>A FACTORY PROOF PIECE</h2>
+  <p>You are the valley's watcher. Six signal bells stand across the valley.
+  Walk it, climb to the ridge stone, and ring every bell with a clean shot —
+  so the village below knows the pass is safe tonight.</p>
+  <p class="controls">WASD — walk &nbsp;·&nbsp; SHIFT — brisk &nbsp;·&nbsp; MOUSE — look<br>
+  At the ridge: hold RIGHT MOUSE (or Q) — scope &nbsp;·&nbsp; LEFT CLICK — fire</p>
+  <button id="startBtn">Take up the watch</button>
+</div></div>
+
+<div class="panel" id="winPanel"><div class="card">
+  <h1>THE VALLEY IS QUIET</h1><h2>ALL SIX BELLS RUNG</h2>
+  <p id="winStats"></p>
+  <button id="againBtn">Watch again</button>
+</div></div>
+
+<script type="module">
+import * as THREE from "three";
+import { SparkRenderer, SplatMesh } from "@sparkjsdev/spark";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+
+const AUTO = new URLSearchParams(location.search).get('auto') === '1';
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.05, 2000);
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+document.body.appendChild(renderer.domElement);
+scene.add(new SparkRenderer({ renderer }));
+const ray = new THREE.Raycaster();
+
+// ---------- audio (all synthesized, no downloads) ----------
+let AC = null;
+function audio() { if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)(); return AC; }
+function bell(i) {
+  const ac = audio(), t = ac.currentTime;
+  const base = 880 * Math.pow(1.0594631, [0,3,5,7,10,12][i % 6]);
+  [[1, .5], [2.76, .22], [5.4, .1]].forEach(([m, g]) => {
+    const o = ac.createOscillator(), gn = ac.createGain();
+    o.type = 'sine'; o.frequency.value = base * m;
+    gn.gain.setValueAtTime(g, t); gn.gain.exponentialRampToValueAtTime(.0001, t + 1.6);
+    o.connect(gn).connect(ac.destination); o.start(t); o.stop(t + 1.7);
+  });
+}
+function shotSound() {
+  const ac = audio(), t = ac.currentTime, len = ac.sampleRate * .14;
+  const buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 2600;
+  const g = ac.createGain(); g.gain.setValueAtTime(.5, t); g.gain.exponentialRampToValueAtTime(.001, t + .14);
+  src.connect(f).connect(g).connect(ac.destination); src.start(t);
+}
+function thock() {
+  const ac = audio(), t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle'; o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(60, t + .12);
+  g.gain.setValueAtTime(.25, t); g.gain.exponentialRampToValueAtTime(.001, t + .13);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + .14);
+}
+
+// ---------- world ----------
+const player = { pos: new THREE.Vector3(0, 2, 6), yaw: 0, pitch: 0 };
+let collider = null;
+function groundHeight(x, z) {
+  if (!collider) return null;
+  ray.set(new THREE.Vector3(x, 500, z), new THREE.Vector3(0, -1, 0));
+  const hit = ray.intersectObject(collider, true)[0];
+  return hit ? hit.point.y : null;
+}
+
+const game = { phase: 'loading', rung: 0, shots: 0, startedAt: 0, finishedAt: 0, ready: false };
+window.__llr = game;
+let bells = [], ridgePoint = null, spawnPoint = null;
+
+function glowTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d'), gr = g.createRadialGradient(64,64,2,64,64,64);
+  gr.addColorStop(0, 'rgba(255,220,130,0.95)'); gr.addColorStop(0.35, 'rgba(255,190,80,0.35)'); gr.addColorStop(1, 'rgba(255,180,60,0)');
+  g.fillStyle = gr; g.fillRect(0,0,128,128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTex = glowTexture();
+
+function buildWorld() {
+  // probe the collider: find walkable ground
+  const pts = [];
+  for (let x = -90; x <= 90; x += 4) for (let z = -90; z <= 90; z += 4) {
+    const y = groundHeight(x, z);
+    if (y !== null && y > -40 && y < 120) pts.push(new THREE.Vector3(x, y, z));
+  }
+  const near = (p, d) => pts.filter(q => q.distanceTo(p) <= d);
+  spawnPoint = pts.reduce((a, b) => (a.distanceTo(new THREE.Vector3(0, a.y, 6)) < b.distanceTo(new THREE.Vector3(0, b.y, 6)) ? a : b));
+  player.pos.set(spawnPoint.x, spawnPoint.y + 1.7, spawnPoint.z);
+  // ridge = highest walkable point within 60 of spawn, at least 3 above spawn if possible
+  const cand = near(spawnPoint, 60).sort((a, b) => b.y - a.y);
+  ridgePoint = cand.find(p => p.y > spawnPoint.y + 3) || cand[0];
+  // ridge stone + golden beam
+  const stone = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.9, 1.1, 7),
+    new THREE.MeshStandardMaterial({ color: 0x8d8578, roughness: .95 }));
+  stone.position.set(ridgePoint.x, ridgePoint.y + .55, ridgePoint.z); scene.add(stone);
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(1.1, 1.1, 90, 16, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xffd97a, transparent: true, opacity: .13, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }));
+  beam.position.set(ridgePoint.x, ridgePoint.y + 45, ridgePoint.z); beam.name = 'ridgeBeam'; scene.add(beam);
+  // six bells at varied bearings/distances from the ridge
+  const wood = new THREE.MeshStandardMaterial({ color: 0x4a3421, roughness: .9 });
+  const gold = new THREE.MeshStandardMaterial({ color: 0xffc94d, emissive: 0xa86f00, emissiveIntensity: .55, metalness: .85, roughness: .3 });
+  const placed = [];
+  for (let i = 0; i < 6; i++) {
+    const bearing = (i / 6) * Math.PI * 2 + .5, dist = 24 + (i % 3) * 15;
+    const want = new THREE.Vector3(ridgePoint.x + Math.sin(bearing) * dist, 0, ridgePoint.z + Math.cos(bearing) * dist);
+    const opts = pts.filter(p => p.distanceTo(ridgePoint) > 14 && placed.every(q => q.distanceTo(p) > 13))
+                    .sort((a, b) => a.distanceTo(want) - b.distanceTo(want));
+    const p = opts[0]; placed.push(p);
+    const grp = new THREE.Group(); grp.position.copy(p);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.14, .18, 4.4, 8), wood); pole.position.y = 2.2; grp.add(pole);
+    const orb = new THREE.Mesh(new THREE.SphereGeometry(.62, 20, 16), gold.clone()); orb.position.y = 4.7; orb.name = 'bell'; grp.add(orb);
+    const spr = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    spr.scale.setScalar(3.4); spr.position.y = 4.7; grp.add(spr);
+    scene.add(grp);
+    bells.push({ grp, orb, spr, rung: false, baseY: 4.7 });
+  }
+  game.phase = 'walk'; game.ready = true;
+  setObjective('Walk the valley — climb to the golden beam', 'the ridge stone waits above');
+}
+
+// ---------- particles ----------
+const bursts = [];
+function burst(pos, color, n, spread, up) {
+  const geo = new THREE.BufferGeometry();
+  const arr = new Float32Array(n * 3), vel = [];
+  for (let i = 0; i < n; i++) {
+    arr[i*3] = pos.x; arr[i*3+1] = pos.y; arr[i*3+2] = pos.z;
+    vel.push(new THREE.Vector3((Math.random()-.5)*spread, Math.random()*up, (Math.random()-.5)*spread));
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const m = new THREE.Points(geo, new THREE.PointsMaterial({ color, size: .28, transparent: true, opacity: 1 }));
+  scene.add(m); bursts.push({ m, vel, life: 1 });
+}
+
+// ---------- input ----------
+const keys = {};
+let scoped = false, playing = false;
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ' && game.phase === 'aim') scoped = !scoped; });
+addEventListener('keyup', e => keys[e.code] = false);
+addEventListener('contextmenu', e => e.preventDefault());
+addEventListener('mousedown', e => {
+  if (!playing) return;
+  if (e.button === 2 && game.phase === 'aim') scoped = true;
+  if (e.button === 0 && game.phase === 'aim' && document.pointerLockElement) fire();
+});
+addEventListener('mouseup', e => { if (e.button === 2) scoped = false; });
+addEventListener('mousemove', e => {
+  if (document.pointerLockElement !== renderer.domElement) return;
+  const s = scoped ? .0006 : .0021;
+  player.yaw -= e.movementX * s; player.pitch -= e.movementY * s;
+  player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+});
+document.addEventListener('pointerlockchange', () => {
+  if (AUTO) return;
+  document.getElementById('hint').textContent =
+    document.pointerLockElement ? hintForPhase() : 'Click the valley to keep walking';
+});
+function hintForPhase() {
+  return game.phase === 'aim' ? 'Hold right mouse — scope · left click — fire · Q toggles scope'
+                              : 'WASD walk · Shift brisk · mouse look';
+}
+renderer.domElement.addEventListener('click', () => { if (playing) renderer.domElement.requestPointerLock(); });
+
+function setObjective(o, s) { document.getElementById('obj').textContent = o; document.getElementById('sub').textContent = s; }
+
+function fire() {
+  game.shots++; document.getElementById('shots').textContent = game.shots;
+  shotSound();
+  const fl = document.getElementById('flash'); fl.style.transition = 'none'; fl.style.opacity = .75;
+  requestAnimationFrame(() => { fl.style.transition = 'opacity .18s'; fl.style.opacity = 0; });
+  ray.setFromCamera(new THREE.Vector2(0, 0), camera);
+  const orbHit = ray.intersectObjects(bells.filter(b => !b.rung).map(b => b.orb), false)[0];
+  if (orbHit) {
+    const b = bells.find(x => x.orb === orbHit.object);
+    b.rung = true; game.rung++;
+    b.orb.material.emissiveIntensity = 0; b.orb.material.color.set(0x6e5626);
+    b.spr.visible = false;
+    const wp = new THREE.Vector3(); b.orb.getWorldPosition(wp);
+    burst(wp, 0xffd97a, 42, 3.2, 2.6); bell(game.rung - 1);
+    document.getElementById('bells').textContent = game.rung + ' / 6';
+    if (game.rung === 6) win(); else setObjective('Ring the six signal bells', (6 - game.rung) + ' still silent — scan the valley');
+    return;
+  }
+  const groundHit = collider ? ray.intersectObject(collider, true)[0] : null;
+  if (groundHit) { burst(groundHit.point, 0xcfc4a8, 10, 1.2, 1.4); thock(); }
+}
+
+function win() {
+  game.phase = 'won'; game.finishedAt = performance.now(); scoped = false;
+  document.exitPointerLock?.();
+  const secs = Math.round((game.finishedAt - game.startedAt) / 1000);
+  const acc = Math.round(100 * game.rung / Math.max(1, game.shots));
+  document.getElementById('winStats').textContent =
+    `Time on the watch: ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} · Shots: ${game.shots} · Accuracy: ${acc}%`;
+  setObjective('The pass is safe tonight', 'all six bells rung');
+  document.getElementById('winPanel').style.display = 'flex';
+  [0, 1, 2].forEach(i => setTimeout(() => bell(i + 2), i * 260));
+}
+
+// ---------- start / restart ----------
+function startGame() {
+  document.getElementById('startPanel').style.display = 'none';
+  document.getElementById('winPanel').style.display = 'none';
+  playing = true; game.startedAt = performance.now();
+  audio();
+  if (!AUTO) renderer.domElement.requestPointerLock();
+}
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('againBtn').addEventListener('click', () => location.reload());
+
+// ---------- load ----------
+(async () => {
+  const splat = new SplatMesh({ url: 'lush-valley_500k.spz' });
+  splat.quaternion.set(1, 0, 0, 0);
+  scene.add(splat);
+  const gltf = await new GLTFLoader().loadAsync('lush-valley_collider.glb');
+  collider = gltf.scene; collider.traverse(o => { o.visible = false; }); scene.add(collider);
+  await splat.initialized;
+  scene.add(new THREE.AmbientLight(0xffe0b3, 1.1));
+  const sun = new THREE.DirectionalLight(0xffc37a, 1.6); sun.position.set(40, 60, 20); scene.add(sun);
+  buildWorld();
+  if (AUTO) { // checker mode: stand at the ridge, slow survey pan
+    playing = true; game.phase = 'aim'; game.startedAt = performance.now();
+    document.getElementById('startPanel').style.display = 'none';
+    player.pos.set(ridgePoint.x + 2.5, ridgePoint.y + 1.7, ridgePoint.z + 2.5);
+    player.yaw = Math.atan2(player.pos.x - ridgePoint.x, player.pos.z - ridgePoint.z) + Math.PI;
+    setObjective('Ring the six signal bells', 'survey from the ridge — checker view');
+  }
+})().catch(e => setObjective('The valley failed to load', e.message));
+
+// ---------- loop ----------
+let last = performance.now(), frames = 0, fpsT = 0, t0 = performance.now();
+renderer.setAnimationLoop(() => {
+  const now = performance.now(), dt = Math.min(.05, (now - last) / 1000); last = now;
+  frames++; fpsT += dt;
+  if (fpsT >= .5) { document.getElementById('fps').textContent = Math.round(frames / fpsT) + ' fps'; frames = 0; fpsT = 0; }
+  if (playing && game.phase !== 'won') {
+    const speed = (keys.ShiftLeft || keys.ShiftRight ? 13 : 5.2) * dt;
+    const fwd = new THREE.Vector3(-Math.sin(player.yaw), 0, -Math.cos(player.yaw));
+    const right = new THREE.Vector3(-fwd.z, 0, fwd.x);
+    if (keys.KeyW) player.pos.addScaledVector(fwd, speed);
+    if (keys.KeyS) player.pos.addScaledVector(fwd, -speed);
+    if (keys.KeyA) player.pos.addScaledVector(right, -speed);
+    if (keys.KeyD) player.pos.addScaledVector(right, speed);
+    const g = groundHeight(player.pos.x, player.pos.z);
+    if (g !== null) player.pos.y = g + 1.7;
+    if (game.phase === 'walk' && ridgePoint && player.pos.distanceTo(new THREE.Vector3(ridgePoint.x, player.pos.y, ridgePoint.z)) < 4) {
+      game.phase = 'aim';
+      setObjective('Ring the six signal bells', 'from the ridge — take your time, watcher');
+      document.getElementById('hint').textContent = hintForPhase();
+      bell(0);
+    }
+    const el = Math.floor((now - game.startedAt) / 1000);
+    document.getElementById('clock').textContent = Math.floor(el/60) + ':' + String(el%60).padStart(2,'0');
+  }
+  if (AUTO) player.yaw += dt * .07;
+  const targetFov = scoped ? 13 : 60;
+  if (Math.abs(camera.fov - targetFov) > .1) { camera.fov += (targetFov - camera.fov) * .35; camera.updateProjectionMatrix(); }
+  document.getElementById('scope').style.display = scoped ? 'block' : 'none';
+  // bells gentle bob + glow pulse
+  const t = (now - t0) / 1000;
+  for (const b of bells) if (!b.rung) { b.orb.position.y = b.baseY + Math.sin(t * 1.6 + b.grp.position.x) * .08; b.spr.material.opacity = .75 + Math.sin(t * 2.2) * .25; }
+  // particles
+  for (let i = bursts.length - 1; i >= 0; i--) {
+    const B = bursts[i], pos = B.m.geometry.attributes.position;
+    for (let j = 0; j < B.vel.length; j++) {
+      B.vel[j].y -= 4.5 * dt;
+      pos.array[j*3] += B.vel[j].x * dt; pos.array[j*3+1] += B.vel[j].y * dt; pos.array[j*3+2] += B.vel[j].z * dt;
+    }
+    pos.needsUpdate = true; B.life -= dt * .9; B.m.material.opacity = Math.max(0, B.life);
+    if (B.life <= 0) { scene.remove(B.m); bursts.splice(i, 1); }
+  }
+  camera.position.copy(player.pos);
+  camera.quaternion.setFromEuler(new THREE.Euler(player.pitch, player.yaw, 0, 'YXZ'));
+  renderer.render(scene, camera);
+});
+addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+</script>
+</body>
+</html>
