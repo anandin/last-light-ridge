@@ -549,6 +549,7 @@ window.addEventListener('error', e => {
 });
 const SNAP = new URLSearchParams(location.search).has('snap');
 let snapFrames = 0;
+const SNAP_T0 = performance.now();
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('contextmenu', e => e.preventDefault());
@@ -747,7 +748,7 @@ renderer.setAnimationLoop(() => {
     snapFrames++;
     window.__sf = snapFrames;
     if (snapFrames === 30) { const d = document.getElementById('diag'); if (d) d.textContent = 'SNAPFIRED sf=30'; }
-    if (snapFrames > 90 && assetsReady) {
+    if (assetsReady && performance.now() - SNAP_T0 > 15000) {
       document.title = document.title + ' — SNAP READY';
       try {
         composer.render();
