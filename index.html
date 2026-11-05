@@ -329,6 +329,22 @@ let assetsReady = false;
   });
 }
 
+// ================= Meshy oak shootout: photoreal AI oaks vs the library trees =================
+{
+  new GLTFLoader().loadAsync('assets/meshy/oak.glb').then(g => {
+    const sc = g.scene;
+    const box = new THREE.Box3().setFromObject(sc);
+    const h = box.max.y - box.min.y || 8;
+    sc.scale.setScalar(8.5 / h);
+    sc.position.y = -box.min.y * (8.5 / h);
+    const wrap = new THREE.Group(); wrap.add(sc);
+    const spotsAt = [[6, 8], [31, 27], [-5, 0], [39, 15], [11, 35], [-14, 27], [-19, -13], [-45, -33]];
+    const spots = spotsAt.map(([x, z]) => [x, heightAt(x, z) - 0.05, z]);
+    instantiate(wrap, spots, 0.85, 1.25, true);
+    console.log('shootout oaks planted:', spots.length);
+  }).catch(e => console.warn('oak load failed', e));
+}
+
 // ================= grass blades (instanced cards, wind-swayed) =================
 window.__windShaders = [];
 {
@@ -508,6 +524,8 @@ const keys = {};
 let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
 let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
 const AUTO = new URLSearchParams(location.search).get('auto');
+const SNAP = new URLSearchParams(location.search).has('snap');
+let snapFrames = 0;
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
 addEventListener('keyup', e => keys[e.code] = false);
 addEventListener('contextmenu', e => e.preventDefault());
@@ -699,6 +717,19 @@ renderer.setAnimationLoop(() => {
     }
     pos.needsUpdate = true; B.life -= dt * .9; B.p.material.opacity = Math.max(0, B.life);
     if (B.life <= 0) { scene.remove(B.p); bursts.splice(i, 1); }
+  }
+  if (SNAP) {
+    snapFrames++;
+    if (snapFrames > 110 && assetsReady) {
+      composer.render();
+      const im = new Image();
+      im.src = renderer.domElement.toDataURL('image/png');
+      im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:60';
+      document.body.appendChild(im);
+      document.title = document.title + ' — SNAP READY';
+      renderer.setAnimationLoop(null);
+      return;
+    }
   }
   composer.render();
 });
