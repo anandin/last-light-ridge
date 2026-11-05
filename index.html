@@ -542,6 +542,11 @@ const keys = {};
 let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
 let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
 const AUTO = new URLSearchParams(location.search).get('auto');
+window.addEventListener('error', e => {
+  let d = document.getElementById('diag');
+  if (!d) { d = document.createElement('div'); d.id = 'diag'; document.body.appendChild(d); }
+  d.textContent = 'ERR: ' + (e.message || e.type);
+});
 const SNAP = new URLSearchParams(location.search).has('snap');
 let snapFrames = 0;
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
