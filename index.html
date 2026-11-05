@@ -720,13 +720,15 @@ renderer.setAnimationLoop(() => {
   }
   if (SNAP) {
     snapFrames++;
-    if (snapFrames > 110 && assetsReady) {
-      composer.render();
-      const im = new Image();
-      im.src = renderer.domElement.toDataURL('image/png');
-      im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:60';
-      document.body.appendChild(im);
+    if (snapFrames > 90 && assetsReady) {
       document.title = document.title + ' — SNAP READY';
+      try {
+        composer.render();
+        const im = new Image();
+        im.src = renderer.domElement.toDataURL('image/png');
+        im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:60';
+        document.body.appendChild(im);
+      } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
       return;
     }
