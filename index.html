@@ -341,8 +341,26 @@ let assetsReady = false;
     const spotsAt = [[6, 8], [31, 27], [-5, 0], [39, 15], [11, 35], [-14, 27], [-19, -13], [-45, -33]];
     const spots = spotsAt.map(([x, z]) => [x, heightAt(x, z) - 0.05, z]);
     instantiate(wrap, spots, 0.85, 1.25, true);
+    window.__oaks = spots.length;
     console.log('shootout oaks planted:', spots.length);
   }).catch(e => console.warn('oak load failed', e));
+}
+
+// ================= Meshy watchtower on the ridge =================
+{
+  new GLTFLoader().loadAsync('assets/meshy/tower.glb').then(g => {
+    const sc = g.scene;
+    const box = new THREE.Box3().setFromObject(sc);
+    const h = box.max.y - box.min.y || 13;
+    const k = 13 / h;
+    sc.scale.setScalar(k);
+    sc.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+    const tx = -37, tz = -30;
+    sc.position.set(tx, heightAt(tx, tz) - box.min.y * k - 0.5, tz);
+    sc.rotation.y = 0.7;
+    scene.add(sc);
+    window.__tower = 1;
+  }).catch(e => console.warn('tower load failed', e));
 }
 
 // ================= grass blades (instanced cards, wind-swayed) =================
@@ -724,10 +742,18 @@ renderer.setAnimationLoop(() => {
       document.title = document.title + ' — SNAP READY';
       try {
         composer.render();
+        const url = renderer.domElement.toDataURL('image/png');
         const im = new Image();
-        im.src = renderer.domElement.toDataURL('image/png');
+        im.src = url;
         im.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:60';
         document.body.appendChild(im);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'llr-shot.png'; a.id = 'snapdl';
+        document.body.appendChild(a); a.click();
+        const d = document.createElement('div');
+        d.id = 'diag';
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0);
+        document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
       return;
