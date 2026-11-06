@@ -282,11 +282,13 @@ let assetsReady = false;
     // The kit's leaf textures are white masks (the "_C" files) meant to be tinted by the
     // material colour — the GLTFs ship no tint, so the leaves rendered white. Tint them here.
     const tintFor = name => name.includes('Pine') ? 0x3e6030 : name.includes('Twisted') ? 0x74903a : 0x5f8433;
+    let tinted = 0;
     models.forEach(m => m.scene.traverse(o => {
-      if (!o.isMesh || !o.material || !o.material.map) return;
-      const src = (o.material.map.image && o.material.map.image.src) || '';
-      if (/_C\.png/.test(src)) o.material.color.set(tintFor(o.material.name || ''));
+      if (!o.isMesh || !o.material) return;
+      const nm = o.material.name || '';
+      if (/^Leaves_/.test(nm)) { o.material.color.set(tintFor(nm)); tinted++; }
     }));
+    window.__tinted = tinted;
     const trees = models.slice(0, 10);
     const treeSpots = sampleSpots(175, { slope: 0.75, maxH: 13.5, clear: 3 });
     trees.forEach((t, i) => {
@@ -626,6 +628,12 @@ if (AUTO === '2') {
   camYaw = -2.37; camPitch = 0.34; scoped = true;
   game.phase = 'aim'; setObjective('Ring the six signal bells', 'from the ridge — checker view');
 }
+if (AUTO === '4') {
+  playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none';
+  hero.position.set(RIDGE.x + 3, RIDGE.y, RIDGE.z + 3);
+  camYaw = 0.78; camPitch = -0.55; scoped = true;
+  game.phase = 'aim'; setObjective('Sky check', 'sky — checker view');
+}
 if (AUTO === '3') {
   playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none';
   hero.position.set(2, heightAt(2, 10), 10);
@@ -776,7 +784,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
