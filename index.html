@@ -773,38 +773,43 @@ const inkPass = new ShaderPass({
     #include <packing>
     float viewZAt(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    vec3 wash(vec3 c){
+      float l = dot(c, vec3(0.299, 0.587, 0.114));
+      float f = l * 6.0;
+      float q = (floor(f) + smoothstep(0.3, 0.7, fract(f))) / 6.0;
+      float r = clamp(q / max(l, 0.001), 0.55, 1.5);
+      c *= mix(1.0, r, 0.85) * 1.07;
+      float l2 = dot(c, vec3(0.299, 0.587, 0.114));
+      c = mix(c, vec3(l2), 0.42);
+      c = mix(c, c * vec3(0.93, 1.0, 1.05), (1.0 - smoothstep(0.0, 0.55, l2)) * 0.30);
+      c = mix(c, c * vec3(1.13, 0.99, 0.86), smoothstep(0.55, 1.0, l2) * 0.38);
+      c *= 1.0 - smoothstep(0.45, 0.0, l2) * 0.20;
+      return c;
+    }
     void main(){
       vec2 px = 1.0 / uRes;
-      vec3 col = texture2D(tDiffuse, vUv).rgb;
-      float lumC = dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
-                 + dot(texture2D(tDiffuse, vUv + vec2(-px.x * 2.0, px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
-                 + dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, -px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
-                 + dot(texture2D(tDiffuse, vUv + vec2(-px.x * 2.0, -px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114));
-      float lum = (dot(col, vec3(0.299, 0.587, 0.114)) + lumC) / 5.0;
-      float zones = 6.0;
-      float f = lum * zones;
-      float q = (floor(f) + smoothstep(0.3, 0.7, fract(f))) / zones;
-      float ratio = clamp(q / max(lum, 0.001), 0.55, 1.5);
-      col *= mix(1.0, ratio, 0.85) * 1.07;
-      float lum2 = dot(col, vec3(0.299, 0.587, 0.114));
-      col = mix(col, vec3(lum2), 0.42);
-      col = mix(col, col * vec3(0.93, 1.0, 1.05), (1.0 - smoothstep(0.0, 0.55, lum2)) * 0.30);
-      col = mix(col, col * vec3(1.13, 0.99, 0.86), smoothstep(0.55, 1.0, lum2) * 0.38);
-      col *= 1.0 - smoothstep(0.45, 0.0, lum2) * 0.20;
+      vec3 raw = texture2D(tDiffuse, vUv).rgb;
+      vec3 r1 = texture2D(tDiffuse, vUv + px * vec2( 3.0,  3.0)).rgb;
+      vec3 r2 = texture2D(tDiffuse, vUv + px * vec2(-3.0,  3.0)).rgb;
+      vec3 r3 = texture2D(tDiffuse, vUv + px * vec2( 3.0, -3.0)).rgb;
+      vec3 r4 = texture2D(tDiffuse, vUv + px * vec2(-3.0, -3.0)).rgb;
+      vec3 col = wash(raw);
+      vec3 w1 = wash(r1); vec3 w2 = wash(r2); vec3 w3 = wash(r3); vec3 w4 = wash(r4);
       float wob = sin(vUv.y * 260.0 + sin(vUv.x * 190.0) * 2.5) * 0.0011;
       vec2 w = vec2(wob, wob * 0.6);
       float z0 = viewZAt(vUv);
       float dx = abs(viewZAt(vUv + vec2(px.x * 1.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 1.6, 0.0) + w) - z0);
       float dy = abs(viewZAt(vUv + vec2(0.0, px.y * 1.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 1.6) + w) - z0);
-      float dx2 = abs(viewZAt(vUv + vec2(px.x * 4.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 3.4, 0.0) + w) - z0);
-      float dy2 = abs(viewZAt(vUv + vec2(0.0, px.y * 4.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 3.4) + w) - z0);
+      float dx2 = abs(viewZAt(vUv + vec2(px.x * 4.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 4.6, 0.0) + w) - z0);
+      float dy2 = abs(viewZAt(vUv + vec2(0.0, px.y * 4.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 4.6) + w) - z0);
       float thresh = 0.12 + z0 * 0.016;
       float edge = smoothstep(thresh, thresh * 1.9, max(max(dx, dy), max(dx2, dy2) * 0.9));
       float crease = clamp((dx + dy) * 0.5 / (thresh * 1.4), 0.0, 1.0) * 0.35;
-      float lumE = abs(dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, 0.0)).rgb - texture2D(tDiffuse, vUv - vec2(px.x * 2.0, 0.0)).rgb, vec3(0.333)))
-                 + abs(dot(texture2D(tDiffuse, vUv + vec2(0.0, px.y * 2.0)).rgb - texture2D(tDiffuse, vUv - vec2(0.0, px.y * 2.0)).rgb, vec3(0.333)));
-      float colEdge = smoothstep(0.22, 0.45, lumE) * 0.35;
-      float line = clamp(max(edge, colEdge) + crease * (1.0 - max(edge, colEdge)), 0.0, 1.0);
+      float chroma = length(w1 - w4) + length(w2 - w3);
+      float lumG = abs(dot(w1, vec3(0.333)) - dot(w4, vec3(0.333))) + abs(dot(w2, vec3(0.333)) - dot(w3, vec3(0.333)));
+      float colEdge = max(smoothstep(0.35, 0.85, chroma) * 0.95, smoothstep(0.22, 0.45, lumG) * 0.4);
+      float lineBase = max(edge, colEdge);
+      float line = clamp(lineBase + crease * (1.0 - lineBase), 0.0, 1.0);
       if (uDebug > 0.5) { float dz = 1.0 - clamp(z0 / 80.0, 0.0, 1.0); gl_FragColor = vec4(vec3(dz), 1.0); return; }
       col = mix(col, vec3(0.07, 0.055, 0.045), line * 0.92);
       float blotch = sin(vUv.x * 9.0 + sin(vUv.y * 7.0) * 2.0) * sin(vUv.y * 11.0 + 1.7) * 0.02;
