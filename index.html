@@ -758,14 +758,13 @@ if (AUTO === '5') {
 }
 
 // ================= post-processing (bloom for bells, sun, beam) =================
-const rtOpts = { samples: INK ? 0 : 4, type: THREE.HalfFloatType };
-if (INK) rtOpts.depthTexture = new THREE.DepthTexture(innerWidth, innerHeight);
-const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, rtOpts);
+const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType });
+const depthRT = INK ? new THREE.WebGLRenderTarget(innerWidth >> 1, innerHeight >> 1, { depthBuffer: true, depthTexture: new THREE.DepthTexture(innerWidth >> 1, innerHeight >> 1) }) : null;
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
 // ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
 const inkPass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? composer.renderTarget2.depthTexture : null },
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? depthRT.depthTexture : null },
     uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
     uNear: { value: camera.near }, uFar: { value: camera.far }, uDebug: { value: new URLSearchParams(location.search).has('inkdebug') ? 1 : 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
@@ -909,6 +908,7 @@ function applyScale() {
   renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
   bookPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   inkPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
+  if (depthRT) depthRT.setSize(Math.max(2, innerWidth * pr >> 1), Math.max(2, innerHeight * pr >> 1));
   opticPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   window.__scale = renderScale;
 }
@@ -1032,6 +1032,7 @@ renderer.setAnimationLoop(() => {
     if (assetsReady && performance.now() - SNAP_T0 > 15000 && ((window.__oaks && window.__tower && window.__sky) || performance.now() - SNAP_T0 > 90000)) {
       document.title = document.title + ' — SNAP READY';
       try {
+        if (depthRT) { renderer.setRenderTarget(depthRT); renderer.render(scene, camera); renderer.setRenderTarget(null); }
         composer.render();
         const url = renderer.domElement.toDataURL('image/png');
         const im = new Image();
@@ -1050,7 +1051,8 @@ renderer.setAnimationLoop(() => {
       return;
     }
   }
-  composer.render();
+  if (depthRT) { renderer.setRenderTarget(depthRT); renderer.render(scene, camera); renderer.setRenderTarget(null); }
+        composer.render();
 });
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
