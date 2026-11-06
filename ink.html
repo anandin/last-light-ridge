@@ -764,7 +764,7 @@ const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
 // ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
 const inkPass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? rt.depthTexture : null },
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? composer.renderTarget2.depthTexture : null },
     uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
     uNear: { value: camera.near }, uFar: { value: camera.far } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
