@@ -762,6 +762,60 @@ const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: INK ?
 if (INK) { rt.depthTexture = new THREE.DepthTexture(innerWidth, innerHeight); }
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
+// ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
+const inkPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? rt.depthTexture : null },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
+    uNear: { value: camera.near }, uFar: { value: camera.far } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tDepth;
+    uniform vec2 uRes; uniform float uNear; uniform float uFar; varying vec2 vUv;
+    #include <packing>
+    float viewZAt(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec2 px = 1.0 / uRes;
+      vec3 col = texture2D(tDiffuse, vUv).rgb;
+      float lumC = dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
+                 + dot(texture2D(tDiffuse, vUv + vec2(-px.x * 2.0, px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
+                 + dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, -px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114))
+                 + dot(texture2D(tDiffuse, vUv + vec2(-px.x * 2.0, -px.y * 2.0)).rgb, vec3(0.299, 0.587, 0.114));
+      float lum = (dot(col, vec3(0.299, 0.587, 0.114)) + lumC) / 5.0;
+      float zones = 6.0;
+      float f = lum * zones;
+      float q = (floor(f) + smoothstep(0.3, 0.7, fract(f))) / zones;
+      float ratio = clamp(q / max(lum, 0.001), 0.55, 1.5);
+      col *= mix(1.0, ratio, 0.85) * 1.07;
+      float lum2 = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(col, vec3(lum2), 0.42);
+      col = mix(col, col * vec3(0.93, 1.0, 1.05), (1.0 - smoothstep(0.0, 0.55, lum2)) * 0.30);
+      col = mix(col, col * vec3(1.13, 0.99, 0.86), smoothstep(0.55, 1.0, lum2) * 0.38);
+      col *= 1.0 - smoothstep(0.45, 0.0, lum2) * 0.20;
+      float wob = sin(vUv.y * 260.0 + sin(vUv.x * 190.0) * 2.5) * 0.0011;
+      vec2 w = vec2(wob, wob * 0.6);
+      float z0 = viewZAt(vUv);
+      float dx = abs(viewZAt(vUv + vec2(px.x * 1.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 1.6, 0.0) + w) - z0);
+      float dy = abs(viewZAt(vUv + vec2(0.0, px.y * 1.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 1.6) + w) - z0);
+      float dx2 = abs(viewZAt(vUv + vec2(px.x * 4.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 3.4, 0.0) + w) - z0);
+      float dy2 = abs(viewZAt(vUv + vec2(0.0, px.y * 4.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 3.4) + w) - z0);
+      float thresh = 0.12 + z0 * 0.016;
+      float edge = smoothstep(thresh, thresh * 1.9, max(max(dx, dy), max(dx2, dy2) * 0.9));
+      float crease = clamp((dx + dy) * 0.5 / (thresh * 1.4), 0.0, 1.0) * 0.35;
+      float lumE = abs(dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, 0.0)).rgb - texture2D(tDiffuse, vUv - vec2(px.x * 2.0, 0.0)).rgb, vec3(0.333)))
+                 + abs(dot(texture2D(tDiffuse, vUv + vec2(0.0, px.y * 2.0)).rgb - texture2D(tDiffuse, vUv - vec2(0.0, px.y * 2.0)).rgb, vec3(0.333)));
+      float colEdge = smoothstep(0.22, 0.45, lumE) * 0.35;
+      float line = clamp(max(edge, colEdge) + crease * (1.0 - max(edge, colEdge)), 0.0, 1.0);
+      col = mix(col, vec3(0.07, 0.055, 0.045), line * 0.92);
+      float blotch = sin(vUv.x * 9.0 + sin(vUv.y * 7.0) * 2.0) * sin(vUv.y * 11.0 + 1.7) * 0.02;
+      float grain = (hash(floor(vUv * uRes * 0.66)) - 0.5) * 0.026;
+      col += blotch + grain;
+      float vig = smoothstep(1.05, 0.45, length(vUv - 0.5) * 1.4);
+      col *= mix(0.88, 1.0, vig);
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+inkPass.enabled = INK;
+composer.addPass(inkPass);
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), INK ? 0.12 : 0.25, 0.5, 0.85);
 composer.addPass(bloom);
 const grade = new ShaderPass({
@@ -841,56 +895,6 @@ const opticPass = new ShaderPass({
       gl_FragColor = c;
     }`
 });
-// ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
-const inkPass = new ShaderPass({
-  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? rt.depthTexture : null },
-    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
-    uNear: { value: camera.near }, uFar: { value: camera.far } },
-  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tDepth;
-    uniform vec2 uRes; uniform float uNear; uniform float uFar; varying vec2 vUv;
-    #include <packing>
-    float viewZAt(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
-    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-    void main(){
-      vec2 px = 1.0 / uRes;
-      vec3 col = texture2D(tDiffuse, vUv).rgb;
-      float lum = dot(col, vec3(0.299, 0.587, 0.114));
-      float zones = 6.0;
-      float f = lum * zones;
-      float q = (floor(f) + smoothstep(0.3, 0.7, fract(f))) / zones;
-      float ratio = clamp(q / max(lum, 0.001), 0.55, 1.5);
-      col *= mix(1.0, ratio, 0.85) * 1.07;
-      float lum2 = dot(col, vec3(0.299, 0.587, 0.114));
-      col = mix(col, vec3(lum2), 0.42);
-      col = mix(col, col * vec3(0.93, 1.0, 1.05), (1.0 - smoothstep(0.0, 0.55, lum2)) * 0.30);
-      col = mix(col, col * vec3(1.13, 0.99, 0.86), smoothstep(0.55, 1.0, lum2) * 0.38);
-      col *= 1.0 - smoothstep(0.45, 0.0, lum2) * 0.20;
-      float wob = sin(vUv.y * 260.0 + sin(vUv.x * 190.0) * 2.5) * 0.0011;
-      vec2 w = vec2(wob, wob * 0.6);
-      float z0 = viewZAt(vUv);
-      float dx = abs(viewZAt(vUv + vec2(px.x * 1.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 1.6, 0.0) + w) - z0);
-      float dy = abs(viewZAt(vUv + vec2(0.0, px.y * 1.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 1.6) + w) - z0);
-      float dx2 = abs(viewZAt(vUv + vec2(px.x * 4.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 3.4, 0.0) + w) - z0);
-      float dy2 = abs(viewZAt(vUv + vec2(0.0, px.y * 4.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 3.4) + w) - z0);
-      float thresh = 0.12 + z0 * 0.016;
-      float edge = smoothstep(thresh, thresh * 1.9, max(max(dx, dy), max(dx2, dy2) * 0.9));
-      float crease = clamp((dx + dy) * 0.5 / (thresh * 1.4), 0.0, 1.0) * 0.35;
-      float lumE = abs(dot(texture2D(tDiffuse, vUv + vec2(px.x * 2.0, 0.0)).rgb - texture2D(tDiffuse, vUv - vec2(px.x * 2.0, 0.0)).rgb, vec3(0.333)))
-                 + abs(dot(texture2D(tDiffuse, vUv + vec2(0.0, px.y * 2.0)).rgb - texture2D(tDiffuse, vUv - vec2(0.0, px.y * 2.0)).rgb, vec3(0.333)));
-      float colEdge = smoothstep(0.22, 0.45, lumE) * 0.35;
-      float line = clamp(max(edge, colEdge) + crease * (1.0 - max(edge, colEdge)), 0.0, 1.0);
-      col = mix(col, vec3(0.07, 0.055, 0.045), line * 0.92);
-      float blotch = sin(vUv.x * 9.0 + sin(vUv.y * 7.0) * 2.0) * sin(vUv.y * 11.0 + 1.7) * 0.02;
-      float grain = (hash(floor(vUv * uRes * 0.66)) - 0.5) * 0.026;
-      col += blotch + grain;
-      float vig = smoothstep(1.05, 0.45, length(vUv - 0.5) * 1.4);
-      col *= mix(0.88, 1.0, vig);
-      gl_FragColor = vec4(col, 1.0);
-    }`
-});
-inkPass.enabled = INK;
-composer.addPass(inkPass);
 composer.addPass(opticPass);
 composer.addPass(new OutputPass());
 // ================= Adaptive resolution ladder + scope state (GrokBuild/Sumiro lessons, Nov 6) =================
