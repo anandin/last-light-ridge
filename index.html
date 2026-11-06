@@ -527,6 +527,40 @@ const bells = [];
 }
 
 // ================= audio =================
+// ================= vista dressing (Quiet Dawn): foreground bell frame + gully mist =================
+{
+  const postM2 = new THREE.MeshStandardMaterial({ color: 0x4c3823, roughness: 1 });
+  const bx = -0.5, bz = -5.5, by = heightAt(bx, bz);
+  const g = new THREE.Group(); g.position.set(bx, by, bz); g.rotation.y = 0.8;
+  [-1.1, 1.1].forEach(ox => { const pp = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, 3.4, 7), postM2); pp.position.set(ox, 1.7, 0); pp.castShadow = true; g.add(pp); });
+  const bar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.9, 6), postM2);
+  bar2.rotation.z = Math.PI / 2; bar2.position.y = 3.35; g.add(bar2);
+  const domeM = new THREE.MeshStandardMaterial({ color: 0xd9a84e, metalness: 0.8, roughness: 0.38, emissive: 0x8a5c00, emissiveIntensity: 0.25, side: THREE.DoubleSide });
+  const dome2 = new THREE.Mesh(new THREE.SphereGeometry(0.46, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), domeM);
+  dome2.position.y = 2.95; dome2.castShadow = true; g.add(dome2);
+  const skirt2 = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.52, 0.36, 14, 1, true), domeM);
+  skirt2.position.y = 2.78; g.add(skirt2);
+  scene.add(g); window.__vistaBell = 1;
+}
+{
+  const mistC = document.createElement('canvas'); mistC.width = 256; mistC.height = 128;
+  const mg = mistC.getContext('2d');
+  for (let i = 0; i < 16; i++) {
+    const x = 30 + Math.random() * 196, y = 55 + Math.random() * 25, r = 26 + Math.random() * 44;
+    const rg = mg.createRadialGradient(x, y, 1, x, y, r);
+    rg.addColorStop(0, 'rgba(255,244,235,0.13)'); rg.addColorStop(1, 'rgba(255,244,235,0)');
+    mg.fillStyle = rg; mg.fillRect(0, 0, 256, 128);
+  }
+  const mistTex = new THREE.CanvasTexture(mistC);
+  window.__mists = [];
+  [[-2, 26], [8, 38], [-20, 18], [16, 20], [-34, 34], [26, 44], [-12, 52], [4, 62]].forEach(([mx, mz]) => {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true, opacity: rand(.35, .6), depthWrite: false }));
+    sp.position.set(mx, heightAt(mx, mz) + rand(1.5, 3.5), mz);
+    sp.scale.set(rand(55, 105), rand(12, 20), 1);
+    scene.add(sp); window.__mists.push(sp);
+  });
+}
+
 let AC = null;
 const audio = () => (AC ??= new (window.AudioContext || window.webkitAudioContext)());
 function chime(i) {
@@ -579,6 +613,8 @@ window.addEventListener('error', e => {
 });
 const SNAP = new URLSearchParams(location.search).has('snap');
 const BOOK = new URLSearchParams(location.search).has('book');
+const DAWN = new URLSearchParams(location.search).get('auto') === '5' || new URLSearchParams(location.search).has('dawn');
+if (DAWN) scene.fog.color.set(0xe8bfa8);
 let snapFrames = 0;
 const SNAP_T0 = performance.now();
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
@@ -704,6 +740,12 @@ if (AUTO === '3') {
   camYaw = 0.78; camPitch = 0.30; heroYaw = 0.78;
   game.phase = 'aim'; setObjective('The ridge watch', 'postcard — checker view');
 }
+if (AUTO === '5') {
+  playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none';
+  hero.position.set(-4, heightAt(-4, 2), 2);
+  camYaw = 0.95; camPitch = 0.20; heroYaw = 0.95;
+  game.phase = 'aim'; setObjective('Quiet Dawn', 'vista — checker view');
+}
 
 // ================= post-processing (bloom for bells, sun, beam) =================
 const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType });
@@ -712,18 +754,18 @@ composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.5, 0.85);
 composer.addPass(bloom);
 const grade = new ShaderPass({
-  uniforms: { tDiffuse: { value: null } },
+  uniforms: { tDiffuse: { value: null }, uDawn: { value: DAWN ? 1 : 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uDawn; varying vec2 vUv;
     void main(){
       vec4 c = texture2D(tDiffuse, vUv);
       float lum = dot(c.rgb, vec3(0.299, 0.587, 0.114));
-      c.rgb = mix(c.rgb, c.rgb * vec3(0.92, 0.99, 1.14), (1.0 - smoothstep(0.0, 0.55, lum)) * 0.35);
-      c.rgb = mix(c.rgb, c.rgb * vec3(1.10, 1.0, 0.86), smoothstep(0.55, 1.0, lum) * 0.30);
+      c.rgb = mix(c.rgb, c.rgb * mix(vec3(0.92, 0.99, 1.14), vec3(1.03, 0.96, 1.00), uDawn), (1.0 - smoothstep(0.0, 0.55, lum)) * 0.35);
+      c.rgb = mix(c.rgb, c.rgb * mix(vec3(1.10, 1.0, 0.86), vec3(1.13, 0.99, 0.88), uDawn), smoothstep(0.55, 1.0, lum) * 0.30);
       float avg = (c.r + c.g + c.b) / 3.0;
-      c.rgb = mix(vec3(avg), c.rgb, 1.07);
+      c.rgb = mix(vec3(avg), c.rgb, mix(1.07, 1.03, uDawn));
       float vig = smoothstep(1.05, 0.45, length(vUv - 0.5) * 1.4);
-      c.rgb *= mix(0.82, 1.0, vig);
+      c.rgb *= mix(mix(0.82, 0.88, uDawn), 1.0, vig);
       gl_FragColor = c;
     }`
 });
@@ -885,6 +927,7 @@ renderer.setAnimationLoop(() => {
   for (const sh of window.__windShaders) sh.uniforms.uTime.value = now / 1000;
   // clouds drift
   for (const c of window.__clouds) { c.position.x += dt * 0.7; if (c.position.x > 360) c.position.x = -360; }
+  for (const m of window.__mists) { m.position.x += dt * 0.15; if (m.position.x > 300) m.position.x = -300; }
   // pollen drift
   {
     const pos = pollen.geometry.attributes.position, t = now / 1000;
@@ -931,7 +974,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0) + ' scale=' + (window.__scale || 1);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0) + ' scale=' + (window.__scale || 1) + ' dawn=' + (DAWN ? 1 : 0);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
