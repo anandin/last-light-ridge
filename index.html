@@ -611,7 +611,7 @@ window.__llr = game;
 const keys = {};
 let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
 let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
-const AUTO = new URLSearchParams(location.search).get('auto');
+const AUTO = location.pathname.includes('vista') ? '5' : new URLSearchParams(location.search).get('auto');
 const IS_TOUCH = new URLSearchParams(location.search).has('touch') || (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
 window.addEventListener('error', e => {
   let d = document.getElementById('diag');
