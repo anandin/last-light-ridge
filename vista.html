@@ -611,7 +611,7 @@ window.__llr = game;
 const keys = {};
 let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
 let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
-const AUTO = location.pathname.includes('vista') ? '5' : new URLSearchParams(location.search).get('auto');
+const AUTO = VISTA ? '5' : new URLSearchParams(location.search).get('auto');
 const IS_TOUCH = new URLSearchParams(location.search).has('touch') || (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
 window.addEventListener('error', e => {
   let d = document.getElementById('diag');
@@ -620,7 +620,8 @@ window.addEventListener('error', e => {
 });
 const SNAP = new URLSearchParams(location.search).has('snap');
 const BOOK = new URLSearchParams(location.search).has('book');
-const DAWN = new URLSearchParams(location.search).get('auto') === '5' || new URLSearchParams(location.search).has('dawn');
+const VISTA = location.pathname.includes('vista') || new URLSearchParams(location.search).get('auto') === '5';
+const DAWN = VISTA || new URLSearchParams(location.search).has('dawn');
 if (DAWN) scene.fog.color.set(0xe8bfa8);
 let snapFrames = 0;
 const SNAP_T0 = performance.now();
