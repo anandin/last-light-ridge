@@ -623,6 +623,8 @@ const SNAP = new URLSearchParams(location.search).has('snap');
 const BOOK = new URLSearchParams(location.search).has('book');
 const DAWN = VISTA || new URLSearchParams(location.search).has('dawn');
 if (DAWN) scene.fog.color.set(0xe8bfa8);
+const INK = location.pathname.includes('ink') || new URLSearchParams(location.search).has('ink');
+if (INK) scene.fog.color.set(0xe6c3ac);
 let snapFrames = 0;
 const SNAP_T0 = performance.now();
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
@@ -756,10 +758,11 @@ if (AUTO === '5') {
 }
 
 // ================= post-processing (bloom for bells, sun, beam) =================
-const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: 4, type: THREE.HalfFloatType });
+const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: INK ? 0 : 4, type: THREE.HalfFloatType });
+if (INK) { rt.depthTexture = new THREE.DepthTexture(innerWidth, innerHeight); }
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.25, 0.5, 0.85);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), INK ? 0.12 : 0.25, 0.5, 0.85);
 composer.addPass(bloom);
 const grade = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, uDawn: { value: DAWN ? 1 : 0 } },
@@ -777,6 +780,7 @@ const grade = new ShaderPass({
       gl_FragColor = c;
     }`
 });
+grade.enabled = !INK;
 composer.addPass(grade);
 // ================= Storybook pass (spike, ?book=1): ink outlines + wash bands + grain =================
 const bookPass = new ShaderPass({
@@ -817,7 +821,7 @@ const bookPass = new ShaderPass({
       gl_FragColor = c;
     }`
 });
-bookPass.enabled = BOOK;
+bookPass.enabled = BOOK && !INK;
 composer.addPass(bookPass);
 // ================= Optic pass (GrokBuild lesson, Nov 6): sharpen + contrast only while scoped =================
 const opticPass = new ShaderPass({
@@ -837,6 +841,51 @@ const opticPass = new ShaderPass({
       gl_FragColor = c;
     }`
 });
+// ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
+const inkPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? rt.depthTexture : null },
+    uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
+    uNear: { value: camera.near }, uFar: { value: camera.far } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tDepth;
+    uniform vec2 uRes; uniform float uNear; uniform float uFar; varying vec2 vUv;
+    #include <packing>
+    float viewZAt(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec2 px = 1.0 / uRes;
+      vec3 col = texture2D(tDiffuse, vUv).rgb;
+      float lum = dot(col, vec3(0.299, 0.587, 0.114));
+      float zones = 7.0;
+      float f = lum * zones;
+      float q = (floor(f) + smoothstep(0.3, 0.7, fract(f))) / zones;
+      float ratio = clamp(q / max(lum, 0.001), 0.65, 1.4);
+      col *= mix(1.0, ratio, 0.6);
+      float lum2 = dot(col, vec3(0.299, 0.587, 0.114));
+      col = mix(col, vec3(lum2), 0.16);
+      col = mix(col, col * vec3(0.93, 1.0, 1.05), (1.0 - smoothstep(0.0, 0.55, lum2)) * 0.30);
+      col = mix(col, col * vec3(1.09, 0.99, 0.89), smoothstep(0.55, 1.0, lum2) * 0.30);
+      col *= 1.0 - smoothstep(0.45, 0.0, lum2) * 0.16;
+      float wob = sin(vUv.y * 260.0 + sin(vUv.x * 190.0) * 2.5) * 0.0011;
+      vec2 w = vec2(wob, wob * 0.6);
+      float z0 = viewZAt(vUv);
+      float dx = abs(viewZAt(vUv + vec2(px.x * 1.6, 0.0) + w) - z0) + abs(viewZAt(vUv - vec2(px.x * 1.6, 0.0) + w) - z0);
+      float dy = abs(viewZAt(vUv + vec2(0.0, px.y * 1.6) + w) - z0) + abs(viewZAt(vUv - vec2(0.0, px.y * 1.6) + w) - z0);
+      float thresh = 0.22 + z0 * 0.028;
+      float edge = smoothstep(thresh, thresh * 2.2, max(dx, dy));
+      float crease = clamp((dx + dy) * 0.5 / (thresh * 1.4), 0.0, 1.0) * 0.35;
+      float line = clamp(edge + crease * (1.0 - edge), 0.0, 1.0);
+      col = mix(col, vec3(0.09, 0.07, 0.06), line * 0.82);
+      float blotch = sin(vUv.x * 9.0 + sin(vUv.y * 7.0) * 2.0) * sin(vUv.y * 11.0 + 1.7) * 0.02;
+      float grain = (hash(floor(vUv * uRes)) - 0.5) * 0.045;
+      col += blotch + grain;
+      float vig = smoothstep(1.05, 0.45, length(vUv - 0.5) * 1.4);
+      col *= mix(0.88, 1.0, vig);
+      gl_FragColor = vec4(col, 1.0);
+    }`
+});
+inkPass.enabled = INK;
+composer.addPass(inkPass);
 composer.addPass(opticPass);
 composer.addPass(new OutputPass());
 // ================= Adaptive resolution ladder + scope state (GrokBuild/Sumiro lessons, Nov 6) =================
@@ -848,6 +897,7 @@ function applyScale() {
   const pr = BASE_PR * renderScale;
   renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
   bookPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
+  inkPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   opticPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
   window.__scale = renderScale;
 }
@@ -982,7 +1032,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0) + ' scale=' + (window.__scale || 1) + ' dawn=' + (DAWN ? 1 : 0);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0) + ' scale=' + (window.__scale || 1) + ' dawn=' + (DAWN ? 1 : 0) + ' ink=' + (INK ? 1 : 0);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
