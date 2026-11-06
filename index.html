@@ -367,7 +367,7 @@ let assetsReady = false;
     sc.scale.setScalar(8.5 / h);
     sc.position.y = -box.min.y * (8.5 / h);
     const wrap = new THREE.Group(); wrap.add(sc);
-    const spotsAt = [[6, 8], [31, 27], [-2, -16], [39, 15], [11, 35], [-14, 27], [-24, -2], [-45, -33]];
+    const spotsAt = [[6, 8], [31, 27], [-2, -16], [39, 15], [11, 35], [-14, 27], [-24, -2], [-45, -33], [-20, -8]];
     const spots = spotsAt.map(([x, z]) => [x, heightAt(x, z) - 0.05, z]);
     instantiate(wrap, spots, 0.85, 1.25, true);
     window.__oaks = spots.length;
@@ -530,7 +530,7 @@ const bells = [];
 // ================= vista dressing (Quiet Dawn): foreground bell frame + gully mist =================
 {
   const postM2 = new THREE.MeshStandardMaterial({ color: 0x4c3823, roughness: 1 });
-  const bx = -0.5, bz = -5.5, by = heightAt(bx, bz);
+  const bx = -16, bz = -19.8, by = heightAt(bx, bz);
   const g = new THREE.Group(); g.position.set(bx, by, bz); g.rotation.y = 0.8;
   [-1.1, 1.1].forEach(ox => { const pp = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, 3.4, 7), postM2); pp.position.set(ox, 1.7, 0); pp.castShadow = true; g.add(pp); });
   const bar2 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.9, 6), postM2);
@@ -541,6 +541,13 @@ const bells = [];
   const skirt2 = new THREE.Mesh(new THREE.CylinderGeometry(0.33, 0.52, 0.36, 14, 1, true), domeM);
   skirt2.position.y = 2.78; g.add(skirt2);
   scene.add(g); window.__vistaBell = 1;
+  // tall standing stone beside the tower, as in the painting
+  const ss = new THREE.Mesh(new THREE.DodecahedronGeometry(1.6, 0),
+    new THREE.MeshStandardMaterial({ color: 0x8d8578, roughness: 1, flatShading: true }));
+  ss.scale.set(1.0, 3.1, 1.0);
+  ss.position.set(-33.5, heightAt(-33.5, -27.5) + 3.4, -27.5);
+  ss.rotation.y = 0.6; ss.castShadow = true;
+  scene.add(ss); window.__vistaStone = 1;
 }
 {
   const mistC = document.createElement('canvas'); mistC.width = 256; mistC.height = 128;
@@ -742,8 +749,8 @@ if (AUTO === '3') {
 }
 if (AUTO === '5') {
   playing = true; game.startedAt = performance.now(); document.getElementById('startPanel').style.display = 'none';
-  hero.position.set(-4, heightAt(-4, 2), 2);
-  camYaw = 0.95; camPitch = 0.20; heroYaw = 0.95;
+  hero.position.set(-14, heightAt(-14, -12), -12);
+  camYaw = 0.80; camPitch = 0.12; heroYaw = 0.80;
   game.phase = 'aim'; setObjective('Quiet Dawn', 'vista — checker view');
 }
 
