@@ -758,18 +758,19 @@ if (AUTO === '5') {
 }
 
 // ================= post-processing (bloom for bells, sun, beam) =================
-const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, { samples: INK ? 0 : 4, type: THREE.HalfFloatType });
-if (INK) { rt.depthTexture = new THREE.DepthTexture(innerWidth, innerHeight); }
+const rtOpts = { samples: INK ? 0 : 4, type: THREE.HalfFloatType };
+if (INK) rtOpts.depthTexture = new THREE.DepthTexture(innerWidth, innerHeight);
+const rt = new THREE.WebGLRenderTarget(innerWidth, innerHeight, rtOpts);
 const composer = new EffectComposer(renderer, rt);
 composer.addPass(new RenderPass(scene, camera));
 // ================= INK PASS — Sumiro discipline: wash zones + ink edges + paper =================
 const inkPass = new ShaderPass({
   uniforms: { tDiffuse: { value: null }, tDepth: { value: INK ? composer.renderTarget2.depthTexture : null },
     uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
-    uNear: { value: camera.near }, uFar: { value: camera.far } },
+    uNear: { value: camera.near }, uFar: { value: camera.far }, uDebug: { value: new URLSearchParams(location.search).has('inkdebug') ? 1 : 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
   fragmentShader: `uniform sampler2D tDiffuse; uniform sampler2D tDepth;
-    uniform vec2 uRes; uniform float uNear; uniform float uFar; varying vec2 vUv;
+    uniform vec2 uRes; uniform float uNear; uniform float uFar; uniform float uDebug; varying vec2 vUv;
     #include <packing>
     float viewZAt(vec2 uv){ return -perspectiveDepthToViewZ(texture2D(tDepth, uv).x, uNear, uFar); }
     float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
@@ -805,6 +806,7 @@ const inkPass = new ShaderPass({
                  + abs(dot(texture2D(tDiffuse, vUv + vec2(0.0, px.y * 2.0)).rgb - texture2D(tDiffuse, vUv - vec2(0.0, px.y * 2.0)).rgb, vec3(0.333)));
       float colEdge = smoothstep(0.22, 0.45, lumE) * 0.35;
       float line = clamp(max(edge, colEdge) + crease * (1.0 - max(edge, colEdge)), 0.0, 1.0);
+      if (uDebug > 0.5) { float dz = 1.0 - clamp(z0 / 80.0, 0.0, 1.0); gl_FragColor = vec4(vec3(dz), 1.0); return; }
       col = mix(col, vec3(0.07, 0.055, 0.045), line * 0.92);
       float blotch = sin(vUv.x * 9.0 + sin(vUv.y * 7.0) * 2.0) * sin(vUv.y * 11.0 + 1.7) * 0.02;
       float grain = (hash(floor(vUv * uRes * 0.66)) - 0.5) * 0.026;
