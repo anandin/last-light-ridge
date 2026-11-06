@@ -137,8 +137,8 @@ scene.add(sun);
   // Real photographed sky + light: Poly Haven HDRI (CC0, factory library Pack B)
   new RGBELoader().load('assets/real/kiara_1_dawn_1k.hdr', tex => {
     tex.mapping = THREE.EquirectangularReflectionMapping;
-    tex.colorSpace = THREE.SRGBColorSpace;
     scene.background = tex;
+    window.__sky = 1;
     const pmrem = new THREE.PMREMGenerator(renderer);
     scene.environment = pmrem.fromEquirectangular(tex).texture;
     scene.environmentIntensity = 0.5;
@@ -770,7 +770,7 @@ renderer.setAnimationLoop(() => {
     snapFrames++;
     window.__sf = snapFrames;
     if (snapFrames === 30) { const d = document.getElementById('diag'); if (d) d.textContent = 'SNAPFIRED sf=30'; }
-    if (assetsReady && performance.now() - SNAP_T0 > 15000 && ((window.__oaks && window.__tower) || performance.now() - SNAP_T0 > 75000)) {
+    if (assetsReady && performance.now() - SNAP_T0 > 15000 && ((window.__oaks && window.__tower && window.__sky) || performance.now() - SNAP_T0 > 90000)) {
       document.title = document.title + ' — SNAP READY';
       try {
         composer.render();
@@ -784,7 +784,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
