@@ -2,9 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Last Light Ridge — Land &amp; Light</title>
 <style>
-  body { margin:0; overflow:hidden; background:#1a1426; font-family: system-ui, sans-serif; color:#fff; }
+  body { margin:0; overflow:hidden; touch-action:none; overscroll-behavior:none; background:#1a1426; font-family: system-ui, sans-serif; color:#fff; }
   canvas { display:block; }
   #vignette { position:fixed; inset:0; pointer-events:none; z-index:5;
     background: radial-gradient(ellipse at center, transparent 52%, rgba(16,6,24,.55) 100%); }
@@ -32,6 +33,17 @@
     padding:12px 30px; border-radius:999px; cursor:pointer; letter-spacing:.06em; }
   .card button:disabled { background:#8a7a52; cursor:wait; }
   #winPanel { display:none; }
+  #touchUI { display:none; position:fixed; inset:0; z-index:15; pointer-events:none; }
+  #joy { position:absolute; left:20px; bottom:96px; width:124px; height:124px; border-radius:50%; pointer-events:auto; touch-action:none;
+    background:rgba(255,255,255,.07); border:1.5px solid rgba(255,255,255,.35); }
+  #joyKnob { position:absolute; left:50%; top:50%; width:54px; height:54px; margin:-27px 0 0 -27px; border-radius:50%;
+    background:rgba(255,255,255,.28); border:1.5px solid rgba(255,255,255,.5); }
+  .tbtn { position:absolute; border-radius:50%; pointer-events:auto; touch-action:none; display:flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.10); border:1.5px solid rgba(255,255,255,.4); color:#fff; font-size:24px; user-select:none; -webkit-user-select:none; }
+  .tbtn:active { background:rgba(255,217,122,.35); }
+  #btnFire { right:22px; bottom:96px; width:82px; height:82px; font-size:30px; }
+  #btnScope { right:118px; bottom:82px; width:62px; height:62px; }
+  #btnJump { right:34px; bottom:192px; width:62px; height:62px; }
 </style>
 <script type="importmap">
 { "imports": {
@@ -48,6 +60,12 @@
 <div id="hud"><div class="obj" id="obj">Growing the valley…</div><div class="sub" id="sub">planting real trees from the factory library</div></div>
 <div id="score">🔔 <b id="bells">0 / 6</b><br><span style="color:#a99f83;font-size:12px">shots <span id="shots">0</span> · <span id="clock">0:00</span> · <span id="fps">…</span></span></div>
 <div id="hint">WASD move · Shift run · Space jump · mouse look</div>
+<div id="touchUI">
+  <div id="joy"><div id="joyKnob"></div></div>
+  <div class="tbtn" id="btnScope">◎</div>
+  <div class="tbtn" id="btnJump">▲</div>
+  <div class="tbtn" id="btnFire">●</div>
+</div>
 
 <div class="panel" id="startPanel"><div class="card">
   <h1>LAST LIGHT RIDGE</h1><h2>THE VALLEY, GROWN PROPERLY</h2>
@@ -552,6 +570,7 @@ const keys = {};
 let playing = false, scoped = false, vy = 0, airborne = false, walkCycle = 0;
 let camYaw = 2.6, camPitch = 0.32, heroYaw = 2.6;
 const AUTO = new URLSearchParams(location.search).get('auto');
+const IS_TOUCH = new URLSearchParams(location.search).has('touch') || (window.matchMedia && matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window;
 window.addEventListener('error', e => {
   let d = document.getElementById('diag');
   if (!d) { d = document.createElement('div'); d.id = 'diag'; document.body.appendChild(d); }
@@ -574,7 +593,50 @@ addEventListener('mousemove', e => {
   const s = scoped ? 0.00055 : 0.0021;
   camYaw -= e.movementX * s; camPitch = Math.max(-0.15, Math.min(1.1, camPitch + e.movementY * s));
 });
-renderer.domElement.addEventListener('click', () => { if (playing) renderer.domElement.requestPointerLock(); });
+renderer.domElement.addEventListener('click', () => { if (playing && !IS_TOUCH) renderer.domElement.requestPointerLock(); });
+
+// ================= touch controls (phones/tablets) =================
+if (IS_TOUCH) {
+  document.getElementById('touchUI').style.display = 'block';
+  document.getElementById('hint').textContent = 'Left stick — move · drag screen — look · ◎ scope · ● fire';
+  const cc = document.querySelector('.card .controls');
+  if (cc) cc.innerHTML = 'LEFT STICK — move &nbsp;·&nbsp; DRAG — look<br>TAP ◎ — scope &nbsp;·&nbsp; ● — fire &nbsp;·&nbsp; ▲ — jump';
+  const joy = document.getElementById('joy'), knob = document.getElementById('joyKnob');
+  let joyId = null;
+  const joySet = (dx, dy) => {
+    keys.KeyW = dy < -0.35; keys.KeyS = dy > 0.35; keys.KeyA = dx < -0.35; keys.KeyD = dx > 0.35;
+    keys.ShiftLeft = Math.hypot(dx, dy) > 0.92;
+    knob.style.transform = 'translate(' + (dx * 34) + 'px,' + (dy * 34) + 'px)';
+  };
+  const joyMove = t => {
+    const r = joy.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    let dx = (t.clientX - cx) / (r.width / 2), dy = (t.clientY - cy) / (r.height / 2);
+    const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; }
+    joySet(dx, dy);
+  };
+  joy.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; joyId = t.identifier; joyMove(t); }, { passive: false });
+  joy.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === joyId) joyMove(t); }, { passive: false });
+  const joyEnd = e => { for (const t of e.changedTouches) if (t.identifier === joyId) { joyId = null; knob.style.transform = 'translate(0px,0px)'; keys.KeyW = keys.KeyS = keys.KeyA = keys.KeyD = keys.ShiftLeft = false; } };
+  joy.addEventListener('touchend', joyEnd); joy.addEventListener('touchcancel', joyEnd);
+  // look: drag anywhere on the canvas
+  let lookId = null, lx = 0, ly = 0;
+  const cv = renderer.domElement;
+  cv.addEventListener('touchstart', e => { for (const t of e.changedTouches) if (lookId === null) { lookId = t.identifier; lx = t.clientX; ly = t.clientY; } }, { passive: true });
+  cv.addEventListener('touchmove', e => { e.preventDefault(); for (const t of e.changedTouches) if (t.identifier === lookId) {
+    const sen = scoped ? 0.002 : 0.005;
+    camYaw -= (t.clientX - lx) * sen; camPitch = Math.max(-0.15, Math.min(1.1, camPitch + (t.clientY - ly) * sen));
+    lx = t.clientX; ly = t.clientY; } }, { passive: false });
+  const lookEnd = e => { for (const t of e.changedTouches) if (t.identifier === lookId) lookId = null; };
+  cv.addEventListener('touchend', lookEnd); cv.addEventListener('touchcancel', lookEnd);
+  // buttons
+  const bindBtn = (id, down, up) => { const el = document.getElementById(id);
+    el.addEventListener('touchstart', e => { e.preventDefault(); e.stopPropagation(); down(); }, { passive: false });
+    if (up) { el.addEventListener('touchend', e => { e.preventDefault(); up(); }, { passive: false }); el.addEventListener('touchcancel', () => up(), { passive: false }); } };
+  bindBtn('btnFire', () => { if (playing) fire(); });
+  bindBtn('btnScope', () => { scoped = !scoped; });
+  bindBtn('btnJump', () => { keys.Space = true; }, () => { keys.Space = false; });
+  document.addEventListener('touchmove', e => { if (playing) e.preventDefault(); }, { passive: false });
+}
 const ray = new THREE.Raycaster();
 function setObjective(o, s) { document.getElementById('obj').textContent = o; document.getElementById('sub').textContent = s; }
 function fire() {
@@ -617,7 +679,7 @@ function startGame() {
   document.getElementById('startPanel').style.display = 'none';
   document.getElementById('winPanel').style.display = 'none';
   playing = true; game.startedAt = performance.now(); audio();
-  if (!AUTO) renderer.domElement.requestPointerLock();
+  if (!AUTO && !IS_TOUCH && renderer.domElement.requestPointerLock) renderer.domElement.requestPointerLock();
 }
 document.getElementById('startBtn').addEventListener('click', startGame);
 document.getElementById('againBtn').addEventListener('click', () => location.reload());
