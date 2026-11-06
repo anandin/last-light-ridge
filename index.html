@@ -577,6 +577,7 @@ window.addEventListener('error', e => {
   d.textContent = 'ERR: ' + (e.message || e.type);
 });
 const SNAP = new URLSearchParams(location.search).has('snap');
+const BOOK = new URLSearchParams(location.search).has('book');
 let snapFrames = 0;
 const SNAP_T0 = performance.now();
 addEventListener('keydown', e => { keys[e.code] = true; if (e.code === 'KeyQ') scoped = !scoped; });
@@ -726,6 +727,47 @@ const grade = new ShaderPass({
     }`
 });
 composer.addPass(grade);
+// ================= Storybook pass (spike, ?book=1): ink outlines + wash bands + grain =================
+const bookPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(innerWidth, innerHeight) },
+    uEdgeAmt: { value: 0.9 }, uPostAmt: { value: 0.55 }, uInk: { value: new THREE.Vector3(0.045, 0.028, 0.014) } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uEdgeAmt; uniform float uPostAmt; uniform vec3 uInk;
+    varying vec2 vUv;
+    float lum(vec3 c){ return dot(c, vec3(0.299, 0.587, 0.114)); }
+    float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main(){
+      vec2 px = 1.0 / uRes;
+      vec4 c = texture2D(tDiffuse, vUv);
+      float l = lum(c.rgb);
+      // wash bands: soft-posterized luminance, like paint laid in flat washes
+      float lc = l / (1.0 + l);
+      float bands = 6.0;
+      float q = (floor(lc * bands) + smoothstep(0.3, 0.7, fract(lc * bands))) / bands;
+      float lq = q / max(1.0 - q, 0.001);
+      c.rgb *= mix(1.0, clamp(lq / max(l, 0.0001), 0.6, 1.6), uPostAmt);
+      // ink outlines: Sobel edges on luminance, broken like a dry brush
+      float tl = lum(texture2D(tDiffuse, vUv + px * vec2(-1.0,  1.0)).rgb);
+      float tc = lum(texture2D(tDiffuse, vUv + px * vec2( 0.0,  1.0)).rgb);
+      float tr = lum(texture2D(tDiffuse, vUv + px * vec2( 1.0,  1.0)).rgb);
+      float ml = lum(texture2D(tDiffuse, vUv + px * vec2(-1.0,  0.0)).rgb);
+      float mr = lum(texture2D(tDiffuse, vUv + px * vec2( 1.0,  0.0)).rgb);
+      float bl = lum(texture2D(tDiffuse, vUv + px * vec2(-1.0, -1.0)).rgb);
+      float bc = lum(texture2D(tDiffuse, vUv + px * vec2( 0.0, -1.0)).rgb);
+      float br = lum(texture2D(tDiffuse, vUv + px * vec2( 1.0, -1.0)).rgb);
+      float gx = -tl - 2.0 * ml - bl + tr + 2.0 * mr + br;
+      float gy = -tl - 2.0 * tc - tr + bl + 2.0 * bc + br;
+      float e = smoothstep(0.16, 0.85, clamp(sqrt(gx * gx + gy * gy) * 1.35, 0.0, 1.0));
+      float brk = 0.72 + 0.55 * hash(floor(vUv * uRes / 2.0));
+      c.rgb = mix(c.rgb, uInk, clamp(e * uEdgeAmt * brk, 0.0, 1.0) * 0.85);
+      // paper grain
+      float g = hash(vUv * uRes) - 0.5;
+      c.rgb += g * 0.02 * (0.4 + 0.6 * (1.0 - clamp(l, 0.0, 1.0)));
+      gl_FragColor = c;
+    }`
+});
+bookPass.enabled = BOOK;
+composer.addPass(bookPass);
 composer.addPass(new OutputPass());
 
 // ================= loop =================
@@ -846,7 +888,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
