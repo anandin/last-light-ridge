@@ -132,6 +132,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const BASE_PR = Math.min(devicePixelRatio, 2);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -768,7 +769,39 @@ const bookPass = new ShaderPass({
 });
 bookPass.enabled = BOOK;
 composer.addPass(bookPass);
+// ================= Optic pass (GrokBuild lesson, Nov 6): sharpen + contrast only while scoped =================
+const opticPass = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, uRes: { value: new THREE.Vector2(innerWidth * BASE_PR, innerHeight * BASE_PR) }, uAmt: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uRes; uniform float uAmt; varying vec2 vUv;
+    void main(){
+      vec4 c = texture2D(tDiffuse, vUv);
+      if (uAmt > 0.003) {
+        vec2 px = 1.5 / uRes;
+        vec3 blur = texture2D(tDiffuse, vUv + vec2(px.x, 0.0)).rgb + texture2D(tDiffuse, vUv - vec2(px.x, 0.0)).rgb
+                  + texture2D(tDiffuse, vUv + vec2(0.0, px.y)).rgb + texture2D(tDiffuse, vUv - vec2(0.0, px.y)).rgb;
+        blur *= 0.25;
+        c.rgb += (c.rgb - blur) * 0.6 * uAmt;
+        c.rgb = mix(c.rgb, (c.rgb - 0.18) * 1.06 + 0.18, 0.35 * uAmt);
+      }
+      gl_FragColor = c;
+    }`
+});
+composer.addPass(opticPass);
 composer.addPass(new OutputPass());
+// ================= Adaptive resolution ladder + scope state (GrokBuild/Sumiro lessons, Nov 6) =================
+// Steps render scale down when frames stay slow; NEVER adjusts while the scope is up.
+let scopeBlend = 0;
+let renderScale = 1.0, ladAcc = 0, ladN = 0, ladLast = performance.now();
+const LADDER = [1, 0.85, 0.7, 0.6, 0.5];
+function applyScale() {
+  const pr = BASE_PR * renderScale;
+  renderer.setPixelRatio(pr); composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight);
+  bookPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
+  opticPass.uniforms.uRes.value.set(innerWidth * pr, innerHeight * pr);
+  window.__scale = renderScale;
+}
+window.__scale = 1;
 
 // ================= loop =================
 let last = performance.now(), frames = 0, fpsT = 0;
@@ -834,6 +867,16 @@ renderer.setAnimationLoop(() => {
     _v.set(hero.position.x, hero.position.y + 1.7, hero.position.z);
     camera.lookAt(_v);
   }
+  // optic easing + adaptive ladder (frozen while scoped)
+  scopeBlend += ((scoped ? 1 : 0) - scopeBlend) * Math.min(1, dt * 6);
+  scene.fog.far = 430 + 150 * scopeBlend;
+  bloom.strength = 0.25 - 0.08 * scopeBlend;
+  opticPass.uniforms.uAmt.value = scopeBlend;
+  { const tNow = performance.now(); ladAcc += (tNow - ladLast) / 1000; ladLast = tNow; ladN++;
+    if (ladAcc >= 2.5) { const fps = ladN / ladAcc; ladAcc = 0; ladN = 0;
+      if (scopeBlend < 0.5) { const idx = LADDER.indexOf(renderScale);
+        if (fps < 45 && idx < LADDER.length - 1) { renderScale = LADDER[idx + 1]; applyScale(); }
+        else if (fps > 58 && idx > 0) { renderScale = LADDER[idx - 1]; applyScale(); } } } }
   const targetFov = scoped ? 16 : 60;
   if (Math.abs(camera.fov - targetFov) > .1) { camera.fov += (targetFov - camera.fov) * .4; camera.updateProjectionMatrix(); }
   document.getElementById('scope').style.display = scoped ? 'grid' : 'none';
@@ -888,7 +931,7 @@ renderer.setAnimationLoop(() => {
         document.body.appendChild(a); a.click();
         const d = document.createElement('div');
         d.id = 'diag';
-        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0);
+        d.textContent = 'SNAPDONE calls=' + renderer.info.render.calls + ' tris=' + renderer.info.render.triangles + ' oaks=' + (window.__oaks || 0) + ' tower=' + (window.__tower || 0) + ' tints=' + (window.__tinted || 0) + ' sky=' + (window.__sky || 0) + ' book=' + (BOOK ? 1 : 0) + ' scale=' + (window.__scale || 1);
         document.body.appendChild(d);
       } catch (e) { console.warn('snap capture failed, freezing live canvas', e); }
       renderer.setAnimationLoop(null);
@@ -900,6 +943,7 @@ renderer.setAnimationLoop(() => {
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight); composer.setSize(innerWidth, innerHeight);
+  applyScale();
 });
 </script>
 </body>
