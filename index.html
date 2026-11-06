@@ -279,6 +279,14 @@ let assetsReady = false;
     load('Rock_Medium_1.gltf'), load('Rock_Medium_2.gltf'), load('Mushroom_Common.gltf'),
     load('RockPath_Round_Thin.gltf'), load('RockPath_Square_Small_1.gltf'),
   ]).then(models => {
+    // The kit's leaf textures are white masks (the "_C" files) meant to be tinted by the
+    // material colour — the GLTFs ship no tint, so the leaves rendered white. Tint them here.
+    const tintFor = name => name.includes('Pine') ? 0x3e6030 : name.includes('Twisted') ? 0x74903a : 0x5f8433;
+    models.forEach(m => m.scene.traverse(o => {
+      if (!o.isMesh || !o.material || !o.material.map) return;
+      const src = (o.material.map.image && o.material.map.image.src) || '';
+      if (/_C\.png/.test(src)) o.material.color.set(tintFor(o.material.name || ''));
+    }));
     const trees = models.slice(0, 10);
     const treeSpots = sampleSpots(175, { slope: 0.75, maxH: 13.5, clear: 3 });
     trees.forEach((t, i) => {
